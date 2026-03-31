@@ -1,0 +1,1667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuantAlpha Lab — HFT Research Platform</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@300;400;500;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+
+  <!-- CodeMirror 5 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+
+  <!-- Chart.js 4 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+  <style>
+    /* ─── TOKENS ──────────────────────────────────────── */
+    :root {
+      --bg-base:      #0d0f14;
+      --bg-surface:   #13161e;
+      --bg-elevated:  #1a1d28;
+      --bg-hover:     #20243a;
+      --border:       #252836;
+      --accent-blue:  #4f8ef7;
+      --accent-green: #22d3a0;
+      --accent-red:   #f45c5c;
+      --accent-amber: #f5a623;
+      --text-primary: #e8eaf0;
+      --text-muted:   #6b7280;
+      --text-code:    #a8d8ea;
+      --radius: 4px;
+      --topbar-h: 48px;
+      --sidebar-w: 54px;
+      --statusbar-h: 26px;
+    }
+
+    /* ─── RESET ───────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body { font-family: 'Roboto Mono', monospace; font-size: 12px; background: var(--bg-base); color: var(--text-primary); }
+    button { font-family: inherit; cursor: pointer; }
+    input, select { font-family: inherit; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ─── SHELL ───────────────────────────────────────── */
+    #app {
+      display: grid;
+      grid-template-rows: var(--topbar-h) 1fr var(--statusbar-h);
+      grid-template-columns: var(--sidebar-w) 1fr;
+      grid-template-areas: "tb tb" "sb mn" "st st";
+      height: 100vh;
+    }
+
+    /* TOPBAR */
+    #topbar {
+      grid-area: tb;
+      background: var(--bg-surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 16px; gap: 12px; z-index: 200;
+    }
+    .logo { font-size: 13px; font-weight: 700; letter-spacing: .06em; color: var(--accent-blue); white-space: nowrap; }
+    .logo em { color: var(--accent-green); font-style: normal; }
+    .ws-tabs { display: flex; gap: 2px; background: var(--bg-base); padding: 3px; border-radius: var(--radius); margin-left: 4px; }
+    .ws-tab {
+      padding: 4px 16px; border-radius: 3px; border: none; background: none;
+      color: var(--text-muted); font-size: 11px; font-weight: 600; letter-spacing: .06em; transition: background .15s, color .15s;
+    }
+    .ws-tab:hover { background: var(--bg-elevated); color: var(--text-primary); }
+    .ws-tab.active { background: var(--accent-blue); color: #fff; }
+    .sp { flex: 1; }
+    #clock { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+    .avatar { width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent-blue),#7b5ea7);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff; }
+
+    /* SIDEBAR */
+    #sidebar {
+      grid-area: sb;
+      background: var(--bg-surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 4px;
+    }
+    .sb-btn { width:36px;height:36px;border-radius:var(--radius);display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:14px;transition:background .15s,color .15s;cursor:pointer;border:none;background:none; }
+    .sb-btn:hover,.sb-btn.active{background:var(--bg-hover);color:var(--accent-blue);}
+    .sb-div{width:30px;height:1px;background:var(--border);margin:4px 0;}
+
+    /* MAIN */
+    #main { grid-area: mn; overflow: hidden; position: relative; }
+
+    /* STATUS BAR */
+    #statusbar { grid-area: st; background:var(--bg-surface);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 12px;gap:20px;font-size:10px;color:var(--text-muted); }
+    .status-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--accent-green);box-shadow:0 0 5px var(--accent-green);margin-right:4px;}
+
+    /* ─── WORKSPACES ──────────────────────────────────── */
+    .workspace { position:absolute;inset:0;overflow:hidden;padding:10px;display:none; }
+    .workspace.active { display:grid; animation: wsIn .28s ease forwards; }
+    @keyframes wsIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+
+    /* ─── PANELS ──────────────────────────────────────── */
+    .panel { background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius);display:flex;flex-direction:column;overflow:hidden;min-height:0; }
+    .ph { display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid var(--border);background:var(--bg-elevated);flex-shrink:0;gap:6px; }
+    .pt { font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-primary); }
+    .pa { display:flex;gap:4px;align-items:center; }
+    .pb { flex:1;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:8px; }
+
+    /* ─── BUTTONS ─────────────────────────────────────── */
+    .btn{padding:4px 10px;border-radius:var(--radius);border:none;font-size:10px;font-weight:600;letter-spacing:.04em;transition:opacity .15s,transform .1s;}
+    .btn:active{transform:scale(.96);}
+    .btn-p{background:var(--accent-blue);color:#fff;}
+    .btn-p:hover{opacity:.85;}
+    .btn-g{background:transparent;border:1px solid var(--border);color:var(--text-muted);}
+    .btn-g:hover{border-color:var(--accent-blue);color:var(--accent-blue);}
+    .btn-run{background:var(--accent-blue);color:#fff;padding:6px 18px;font-size:11px;font-weight:700;letter-spacing:.05em;white-space:nowrap;}
+    .btn-run.running{animation:pulse 1s ease-in-out infinite;}
+    @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(79,142,247,.5)}50%{box-shadow:0 0 0 7px rgba(79,142,247,0)}}
+
+    /* ─── FORM CONTROLS ───────────────────────────────── */
+    .inp,select{background:var(--bg-base);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-primary);font-size:11px;padding:4px 8px;outline:none;transition:border-color .15s;}
+    .inp:focus,select:focus{border-color:var(--accent-blue);}
+    select option{background:var(--bg-elevated);}
+
+    /* ─── BADGES ──────────────────────────────────────── */
+    .badge{display:inline-flex;align-items:center;padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;}
+    .bb{background:rgba(79,142,247,.15);color:var(--accent-blue);border:1px solid rgba(79,142,247,.3);}
+    .bg{background:rgba(34,211,160,.15);color:var(--accent-green);border:1px solid rgba(34,211,160,.3);}
+    .br{background:rgba(244,92,92,.15);color:var(--accent-red);border:1px solid rgba(244,92,92,.3);}
+    .ba{background:rgba(245,166,35,.15);color:var(--accent-amber);border:1px solid rgba(245,166,35,.3);}
+    .bm{background:rgba(107,114,128,.12);color:var(--text-muted);border:1px solid rgba(107,114,128,.25);}
+
+    /* ─── DATA TABLE ──────────────────────────────────── */
+    .dt{width:100%;border-collapse:collapse;font-size:11px;}
+    .dt th{text-align:left;padding:5px 8px;color:var(--text-muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none;}
+    .dt th:hover{color:var(--text-primary);}
+    .dt td{padding:5px 8px;border-bottom:1px solid rgba(37,40,54,.5);white-space:nowrap;font-variant-numeric:tabular-nums;}
+    .dt tr:hover td{background:var(--bg-hover);}
+    .dt tr.sel td{background:rgba(79,142,247,.07);border-left:2px solid var(--accent-blue);}
+
+    /* ─── METRIC CARDS ────────────────────────────────── */
+    .mc{background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;}
+    .ml{font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:3px;}
+    .mv{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;}
+    .ms{font-size:9px;color:var(--text-muted);margin-top:2px;}
+    .cg{color:var(--accent-green);} .cr{color:var(--accent-red);} .cb{color:var(--accent-blue);} .ca{color:var(--accent-amber);} .cm{color:var(--text-muted);}
+
+    /* ─── PROGRESS ────────────────────────────────────── */
+    .prog-t{background:var(--bg-base);border-radius:2px;height:4px;overflow:hidden;flex:1;}
+    .prog-f{height:100%;background:var(--accent-blue);border-radius:2px;transition:width .25s ease;}
+
+    /* ─── CODEMIRROR ──────────────────────────────────── */
+    .CodeMirror{height:100%!important;font-family:'Space Mono',monospace!important;font-size:11.5px!important;line-height:1.55!important;background:#0b0d12!important;}
+    .CodeMirror-scroll{overflow-y:auto!important;overflow-x:auto!important;}
+    .cm-s-quantlab.CodeMirror{background:#0b0d12;color:#a8d8ea;}
+    .cm-s-quantlab .CodeMirror-gutters{background:#0f1117;border-right:1px solid #1e2132;}
+    .cm-s-quantlab .CodeMirror-linenumber{color:#3d4460;font-size:10px;}
+    .cm-s-quantlab .cm-keyword{color:#4f8ef7;font-weight:600;}
+    .cm-s-quantlab .cm-def{color:#e8eaf0;}
+    .cm-s-quantlab .cm-string{color:#22d3a0;}
+    .cm-s-quantlab .cm-number{color:#f5a623;}
+    .cm-s-quantlab .cm-comment{color:#3d4460;font-style:italic;}
+    .cm-s-quantlab .cm-builtin{color:#f45c5c;}
+    .cm-s-quantlab .cm-operator{color:#7ba8f7;}
+    .cm-s-quantlab .cm-variable{color:#a8d8ea;}
+    .cm-s-quantlab .cm-variable-2{color:#d4e4f5;}
+    .cm-s-quantlab .cm-atom{color:#f5a623;}
+    .cm-s-quantlab .CodeMirror-selected{background:rgba(79,142,247,.18);}
+    .cm-s-quantlab .CodeMirror-cursor{border-left:2px solid var(--accent-blue);}
+    .cm-s-quantlab .CodeMirror-matchingbracket{background:rgba(79,142,247,.22);color:var(--accent-blue)!important;outline:1px solid var(--accent-blue);}
+
+    /* ─── CONSOLE ─────────────────────────────────────── */
+    .console{background:#060810;border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;font-family:'Space Mono',monospace;font-size:10px;color:var(--accent-green);height:110px;overflow-y:auto;line-height:1.6;flex-shrink:0;}
+
+    /* ─── TOOLTIP ─────────────────────────────────────── */
+    #hm-tooltip{position:fixed;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);padding:6px 10px;font-size:11px;pointer-events:none;z-index:999;display:none;box-shadow:0 4px 16px rgba(0,0,0,.5);line-height:1.6;}
+
+    /* ─── TOAST ───────────────────────────────────────── */
+    #toast-wrap{position:fixed;bottom:36px;right:18px;z-index:9999;display:flex;flex-direction:column;gap:6px;}
+    .toast{background:var(--bg-elevated);border:1px solid var(--border);border-left:3px solid var(--accent-green);border-radius:var(--radius);padding:8px 14px;font-size:11px;min-width:230px;animation:tIn .25s ease,tOut .3s ease 2.7s forwards;}
+    .toast.info{border-left-color:var(--accent-blue);} .toast.error{border-left-color:var(--accent-red);}
+    @keyframes tIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+    @keyframes tOut{to{opacity:0;transform:translateX(14px)}}
+
+    /* ─── QR WORKSPACE ────────────────────────────────── */
+    #ws-qr {
+      grid-template-columns: 3fr 2fr;
+      grid-template-rows: 1fr 52px 1fr;
+      gap: 8px;
+      grid-template-areas: "qr-ed qr-vl" "qr-sc qr-sc" "qr-ch qr-mx";
+      height: 100%;
+    }
+    #qr-ed{grid-area:qr-ed;}
+    #qr-vl{grid-area:qr-vl;}
+    #qr-sc{grid-area:qr-sc;flex-direction:row;align-items:center;padding:0 14px;gap:12px;}
+    #qr-ch{grid-area:qr-ch;}
+    #qr-mx{grid-area:qr-mx;}
+    .sim-grp{display:flex;align-items:center;gap:6px;color:var(--text-muted);font-size:11px;}
+    #sim-prog{display:none;align-items:center;gap:8px;flex:1;}
+    .var-cat-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-muted);margin-bottom:4px;padding:2px 4px;}
+    .var-item{display:flex;align-items:center;justify-content:space-between;padding:4px 6px;border-radius:var(--radius);cursor:pointer;font-size:11px;color:var(--text-code);transition:background .12s;}
+    .var-item:hover{background:var(--bg-hover);}
+    .mxgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;height:100%;}
+
+    /* ─── DS WORKSPACE ────────────────────────────────── */
+    #ws-ds {
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 8px;
+      grid-template-areas: "ds-ex ds-tr" "ds-ev ds-pb";
+      height: 100%;
+    }
+    #ds-ex{grid-area:ds-ex;} #ds-tr{grid-area:ds-tr;}
+    #ds-ev{grid-area:ds-ev;} #ds-pb{grid-area:ds-pb;}
+    .smtbl{width:100%;border-collapse:collapse;font-size:11px;}
+    .smtbl td{padding:3px 6px;border-bottom:1px solid rgba(37,40,54,.4);}
+    .smtbl td:first-child{color:var(--text-muted);font-size:10px;}
+    .smtbl td:last-child{text-align:right;font-variant-numeric:tabular-nums;}
+    .conf-wrap{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
+    .conf-cell{padding:8px;border-radius:var(--radius);text-align:center;border:1px solid var(--border);}
+    .cf-lbl{font-size:9px;color:var(--text-muted);margin-bottom:2px;}
+    .cf-val{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;}
+
+    /* ─── PM WORKSPACE ────────────────────────────────── */
+    #ws-pm {
+      grid-template-columns: 3fr 2fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 8px;
+      grid-template-areas: "pm-lb pm-hm" "pm-rs pm-al";
+      height: 100%;
+    }
+    #pm-lb{grid-area:pm-lb;} #pm-hm{grid-area:pm-hm;}
+    #pm-rs{grid-area:pm-rs;} #pm-al{grid-area:pm-al;}
+    .res-av{width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;flex-shrink:0;}
+
+    /* ─── UTILS ───────────────────────────────────────── */
+    .row{display:flex;align-items:center;} .col{display:flex;flex-direction:column;}
+    .g4{gap:4px;} .g6{gap:6px;} .g8{gap:8px;} .f1{flex:1;} .w100{width:100%;}
+    .mono{font-family:'Space Mono',monospace;}
+    .lbl{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);}
+    .oa{overflow:auto;}
+
+    /* OB depth bars in PM */
+    .ob-bar-b{height:6px;border-radius:2px;background:var(--accent-blue);opacity:.7;}
+    .ob-bar-g{height:6px;border-radius:2px;background:var(--accent-green);opacity:.7;}
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ═══ TOPBAR ══════════════════════════════════ -->
+  <header id="topbar">
+    <span class="logo">QUANT<em>ALPHA</em> LAB</span>
+    <div class="ws-tabs">
+      <button class="ws-tab active" data-ws="qr" title="Quant Researcher">QR</button>
+      <button class="ws-tab"        data-ws="ds" title="Data Scientist">DS</button>
+      <button class="ws-tab"        data-ws="pm" title="Portfolio Manager">PM</button>
+    </div>
+    <span class="sp"></span>
+    <span id="clock"></span>
+    <div class="avatar" title="John D.">JD</div>
+  </header>
+
+  <!-- ═══ SIDEBAR ═════════════════════════════════ -->
+  <nav id="sidebar">
+    <button class="sb-btn active" title="Editor">&#9000;</button>
+    <button class="sb-btn" title="Order Book">&#9636;</button>
+    <div class="sb-div"></div>
+    <button class="sb-btn" title="Signals">&#8593;</button>
+    <button class="sb-btn" title="Models">&#9670;</button>
+    <div class="sb-div"></div>
+    <button class="sb-btn" title="Settings" style="margin-top:auto;">&#9881;</button>
+  </nav>
+
+  <!-- ═══ MAIN ═════════════════════════════════════ -->
+  <main id="main">
+
+    <!-- ╔═══════════════════════════════════════╗
+         ║  QR — QUANT RESEARCHER               ║
+         ╚═══════════════════════════════════════╝ -->
+    <div id="ws-qr" class="workspace active">
+
+      <!-- HFT Factor Expression Editor -->
+      <div class="panel" id="qr-ed">
+        <div class="ph">
+          <span class="pt">&#8706; HFT Factor Expression Editor</span>
+          <div class="pa">
+            <button class="btn btn-g" onclick="qrFmt()">Format</button>
+            <button class="btn btn-g" onclick="qrSave()">Save</button>
+            <button class="btn btn-g" onclick="qrShare()">Share</button>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow:hidden;">
+          <textarea id="qr-ta"></textarea>
+        </div>
+      </div>
+
+      <!-- Order Book Variable Library -->
+      <div class="panel" id="qr-vl">
+        <div class="ph"><span class="pt">&#9636; OB Variable Library</span></div>
+        <div class="pb">
+          <input class="inp w100" type="text" id="var-search"
+                 placeholder="Search variables…" oninput="filterVars(this.value)">
+          <div id="var-list" style="flex:1;overflow-y:auto;"></div>
+        </div>
+      </div>
+
+      <!-- Simulation Control -->
+      <div class="panel" id="qr-sc">
+        <div class="sim-grp">
+          <span>Instrument</span>
+          <select id="sel-inst">
+            <option>VN30F2112</option>
+            <option>CSI 300 Futures</option>
+            <option>Nikkei 225 Futures</option>
+          </select>
+        </div>
+        <div class="sim-grp">
+          <span>Lookback</span>
+          <select id="sel-lb">
+            <option>10s</option>
+            <option>30s</option>
+            <option selected>60s</option>
+            <option>120s</option>
+            <option>1800s</option>
+          </select>
+        </div>
+        <div class="sim-grp">
+          <span>Pred Window</span>
+          <select id="sel-pw">
+            <option>5s</option>
+            <option selected>10s</option>
+            <option>30s</option>
+          </select>
+        </div>
+        <div class="sim-grp">
+          <span>OBI Weights</span>
+          <select id="sel-wt">
+            <option selected>(1,1,1)</option>
+            <option>(9,1,0)</option>
+            <option>(5,3,2)</option>
+            <option>(7,2,1)</option>
+          </select>
+        </div>
+        <button id="run-btn" class="btn btn-run" onclick="runSim()">&#9654; RUN BACKTEST</button>
+        <div id="sim-prog" class="row g8 f1">
+          <div class="prog-t f1"><div class="prog-f" id="sim-fill" style="width:0%"></div></div>
+          <span id="sim-eta" style="font-size:10px;color:var(--text-muted);white-space:nowrap;">ETA: --</span>
+        </div>
+      </div>
+
+      <!-- Cumulative HFT PnL Chart -->
+      <div class="panel" id="qr-ch">
+        <div class="ph">
+          <span class="pt">&#8767; Cumulative PnL — Alpha Signal Backtest (bps) &nbsp;<span style="font-size:8px;color:var(--text-muted);font-weight:400;letter-spacing:0;">submit=1&amp;true=1 → +spread &nbsp;|&nbsp; submit=1&amp;true=0 → −spread &nbsp;|&nbsp; submit=0 → 0</span></span>
+          <div class="pa">
+            <span class="badge bg" id="pnl-total-badge">+42.3 bps</span>
+            <span class="badge bb" id="wr-badge">Win Rate 56.4%</span>
+          </div>
+        </div>
+        <div class="pb" style="padding:6px 10px;">
+          <div style="position:relative;flex:1;min-height:0;">
+            <canvas id="pnl-chart"></canvas>
+          </div>
+          <!-- Trade info bar -->
+          <div class="row g8" style="flex-shrink:0;margin-top:4px;">
+            <span class="lbl">Last Trade:</span>
+            <span class="badge bg" id="last-trade-badge">&#8593; BUY +5.0 bps</span>
+            <span class="lbl" style="margin-left:8px;">Signal (OBI):</span>
+            <span id="obi-val" class="cg" style="font-size:11px;font-weight:700;">+0.312</span>
+            <span class="lbl" style="margin-left:8px;">Rise Ratio (10s):</span>
+            <span id="rr-val" class="cb" style="font-size:11px;font-weight:700;">+0.021%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- HFT Backtest Metrics (PnL-based) -->
+      <div class="panel" id="qr-mx">
+        <div class="ph"><span class="pt">&#8721; Backtest Metrics</span></div>
+        <div class="pb" style="padding:8px;">
+          <div class="mxgrid" id="qr-metrics-grid"></div>
+        </div>
+      </div>
+
+    </div><!-- /ws-qr -->
+
+
+    <!-- ╔═══════════════════════════════════════╗
+         ║  DS — DATA SCIENTIST                 ║
+         ╚═══════════════════════════════════════╝ -->
+    <div id="ws-ds" class="workspace">
+
+      <!-- Order Book Explorer -->
+      <div class="panel" id="ds-ex">
+        <div class="ph">
+          <span class="pt">&#8855; Order Book Explorer</span>
+          <select id="ds-dataset" class="inp" style="font-size:10px;padding:2px 6px;" onchange="dsDataChange()">
+            <option>VN30F2112 — Full History (2021-04-19 ~ 2021-12-16)</option>
+            <option>VN30F2112 — Nov 2021 (high density)</option>
+            <option>VN30F2112 — Apr–Jul 2021 (wide spread)</option>
+          </select>
+        </div>
+        <div class="pb">
+          <div class="lbl">Level-3 Order Book Statistics</div>
+          <table class="smtbl" id="ds-stats"></table>
+          <div class="lbl">Bid1 &amp; Ask1 Price Over Time (09:00–09:30 sample)</div>
+          <div style="position:relative;height:110px;flex-shrink:0;">
+            <canvas id="ds-ob-chart"></canvas>
+          </div>
+          <div class="lbl">Bid / Ask Quantity Level 1–3</div>
+          <div style="position:relative;height:70px;flex-shrink:0;">
+            <canvas id="ds-qty-chart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rolling-Window ML Trainer -->
+      <div class="panel" id="ds-tr">
+        <div class="ph">
+          <span class="pt">&#9881; HFT Rolling-Window Classifier</span>
+          <div class="pa">
+            <button class="btn btn-p" onclick="dsTrain()">Train</button>
+            <button class="btn btn-g" onclick="dsEval()">Evaluate</button>
+            <button class="btn btn-g" onclick="dsExport()">Export</button>
+          </div>
+        </div>
+        <div class="pb">
+          <div style="flex:1;min-height:0;overflow:hidden;min-height:140px;max-height:200px;">
+            <textarea id="ds-ta"></textarea>
+          </div>
+          <div class="console" id="ds-console">
+            <div>QuantAlpha HFT Console v1.0.0</div>
+            <div style="color:var(--text-muted)">Ready — select a dataset and click Train.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rolling-Window Accuracy + Evaluation -->
+      <div class="panel" id="ds-ev">
+        <div class="ph"><span class="pt">&#9678; Model Evaluation — Rolling Window</span></div>
+        <div class="pb">
+          <div class="lbl">Accuracy over Rolling Windows (30min train → 10s predict)</div>
+          <div style="position:relative;height:110px;flex-shrink:0;">
+            <canvas id="roll-acc-chart"></canvas>
+          </div>
+          <div class="lbl">Confusion Matrix</div>
+          <div class="conf-wrap" id="ds-conf"></div>
+          <div class="row g4" style="flex-wrap:wrap;margin-top:4px;" id="ds-scalars"></div>
+        </div>
+      </div>
+
+      <!-- Factor Publisher -->
+      <div class="panel" id="ds-pb">
+        <div class="ph"><span class="pt">&#8593; HFT Factor Publisher</span></div>
+        <div class="pb" style="padding:0;">
+          <div class="oa" style="flex:1;">
+            <table class="dt" id="ds-pub-table">
+              <thead><tr><th>Factor</th><th>Type</th><th>Formula</th><th>Author</th><th>Status</th><th>Action</th></tr></thead>
+              <tbody id="ds-pub-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /ws-ds -->
+
+
+    <!-- ╔═══════════════════════════════════════╗
+         ║  PM — PORTFOLIO MANAGER              ║
+         ╚═══════════════════════════════════════╝ -->
+    <div id="ws-pm" class="workspace">
+
+      <!-- HFT Strategy Leaderboard -->
+      <div class="panel" id="pm-lb">
+        <div class="ph">
+          <span class="pt">&#8868; HFT Strategy Leaderboard</span>
+          <input class="inp" type="text" id="strat-search" placeholder="Search…"
+                 style="width:140px;" oninput="filterStrats(this.value)">
+        </div>
+        <div class="pb" style="padding:0;">
+          <div class="oa" style="flex:1;">
+            <table class="dt" id="pm-strat-table">
+              <thead>
+                <tr>
+                  <th onclick="sortStrats('id')">Strategy &#8597;</th>
+                  <th onclick="sortStrats('author')">Author &#8597;</th>
+                  <th onclick="sortStrats('model')">Model / Weights</th>
+                  <th onclick="sortStrats('totalPnL')">Total PnL (bps) &#8597;</th>
+                  <th onclick="sortStrats('sharpe')">Sharpe &#8597;</th>
+                  <th onclick="sortStrats('winRate')">Win Rate &#8597;</th>
+                  <th onclick="sortStrats('maxDD')">Max DD &#8597;</th>
+                  <th>PnL Curve</th>
+                  <th onclick="sortStrats('status')">Status &#8597;</th>
+                </tr>
+              </thead>
+              <tbody id="pm-strat-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Strategy Alpha Signal Correlation -->
+      <div class="panel" id="pm-hm">
+        <div class="ph"><span class="pt">&#9636; Alpha Strategy Correlation &nbsp;<span style="font-size:8px;color:var(--text-muted);font-weight:400;">Pearson &#961; between submission sequences</span></span></div>
+        <div class="pb" style="padding:6px;">
+          <div id="hm-grid"></div>
+        </div>
+      </div>
+
+      <!-- Researcher / Model Comparison -->
+      <div class="panel" id="pm-rs">
+        <div class="ph"><span class="pt">&#9672; Model Performance Comparison</span></div>
+        <div class="pb" style="padding:0;">
+          <div class="oa" style="flex:1;">
+            <table class="dt">
+              <thead><tr><th>Rank</th><th>Model</th><th>Acc Mean</th><th>Acc Std</th><th>F1 Mean</th><th>Best Window</th><th>Score</th></tr></thead>
+              <tbody id="pm-model-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Order Book Depth + Strategy Allocation -->
+      <div class="panel" id="pm-al">
+        <div class="ph"><span class="pt">&#9677; Live Order Book Depth</span></div>
+        <div class="pb">
+          <div style="position:relative;height:140px;flex-shrink:0;">
+            <canvas id="depth-chart"></canvas>
+          </div>
+          <div class="lbl" style="margin-top:4px;">Strategy Deployment Weights</div>
+          <div class="oa" style="flex:1;">
+            <table class="dt" id="pm-alloc-tbl">
+              <thead><tr><th>Strategy</th><th>Weight</th><th>Signal</th><th>Contrib</th></tr></thead>
+              <tbody id="pm-alloc-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /ws-pm -->
+
+  </main>
+
+  <!-- ═══ STATUSBAR ════════════════════════════════ -->
+  <footer id="statusbar">
+    <span><span class="status-dot"></span>Feed Healthy</span>
+    <span id="sb-bt">Last Backtest: —</span>
+    <span id="sb-tick">Tick Feed: VN30F2112 | Latency: 0.3ms</span>
+    <span style="margin-left:auto;">QuantAlpha HFT Lab&nbsp;&nbsp;v2.4.1</span>
+  </footer>
+
+</div><!-- /#app -->
+
+<div id="hm-tooltip"></div>
+<div id="toast-wrap"></div>
+
+<!-- ══════════════════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════════════════ -->
+<script>
+/* ═══════════════════════════════════════════════════════════
+   DETERMINISTIC PRNG (LCG)
+═══════════════════════════════════════════════════════════ */
+function lcg(seed) {
+  let s = seed >>> 0;
+  return () => { s = (Math.imul(1664525, s) + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+/* ═══════════════════════════════════════════════════════════
+   REAL ORDER BOOK DATA — VN30F2112 (VN30 Futures Dec 2021)
+   Source: data/VN30F2112.csv
+   300 snapshots sampled uniformly across 2021-04-19 → 2021-12-16
+   Columns: ts (datetime), b1/b2/b3 (bid prices lv1-3),
+            a1/a2/a3 (ask prices lv1-3)
+   Note: CSV has no quantity column; quantities are simulated
+         synthetically (seed=42) for OBI/depth factor computation.
+═══════════════════════════════════════════════════════════ */
+const VN30F_RAW = [{"ts":"2021-04-19T13:00:43","b1":1277.0,"b2":1276.9,"b3":1275.6,"a1":1287.7,"a2":1287.8,"a3":1288.0},{"ts":"2021-04-22T09:27:41","b1":1304.6,"b2":1303.6,"b3":1300.2,"a1":1307.0,"a2":1314.9,"a3":1316.5},{"ts":"2021-04-23T13:08:45","b1":1271.7,"b2":1268.1,"b3":1268.0,"a1":1272.8,"a2":1275.0,"a3":1279.0},{"ts":"2021-04-26T13:04:46","b1":1273.7,"b2":1273.6,"b3":1273.3,"a1":1276.9,"a2":1279.0,"a3":1280.1},{"ts":"2021-04-27T10:46:44","b1":1263.1,"b2":1259.0,"b3":1255.7,"a1":1265.3,"a2":1265.4,"a3":1268.8},{"ts":"2021-04-29T10:57:44","b1":1289.1,"b2":1284.6,"b3":1284.5,"a1":1289.8,"a2":1289.9,"a3":1290.0},{"ts":"2021-05-05T10:16:28","b1":1323.3,"b2":1323.1,"b3":1322.7,"a1":1331.9,"a2":1332.0,"a3":1332.5},{"ts":"2021-05-10T09:20:45","b1":1310.0,"b2":1306.2,"b3":1306.0,"a1":1310.4,"a2":1311.9,"a3":1312.9},{"ts":"2021-05-12T13:13:22","b1":1324.1,"b2":1324.0,"b3":1321.1,"a1":1338.6,"a2":1338.7,"a3":1338.9},{"ts":"2021-05-14T11:24:17","b1":1362.9,"b2":1362.8,"b3":1362.0,"a1":1369.9,"a2":1375.9,"a3":1376.0},{"ts":"2021-05-18T13:20:03","b1":1352.8,"b2":1352.7,"b3":1352.5,"a1":1357.0,"a2":1357.5,"a3":1358.8},{"ts":"2021-05-24T13:46:45","b1":1398.7,"b2":1398.6,"b3":1398.2,"a1":1405.5,"a2":1408.5,"a3":1408.8},{"ts":"2021-05-27T13:54:17","b1":1420.1,"b2":1420.0,"b3":1418.0,"a1":1424.7,"a2":1425.3,"a3":1428.8},{"ts":"2021-05-31T11:17:58","b1":1440.2,"b2":1440.0,"b3":1436.0,"a1":1445.9,"a2":1446.0,"a3":1446.5},{"ts":"2021-06-02T10:07:13","b1":1474.0,"b2":1473.5,"b3":1473.2,"a1":1477.9,"a2":1480.0,"a3":1482.0},{"ts":"2021-06-03T13:14:28","b1":1481.2,"b2":1481.1,"b3":1481.0,"a1":1486.0,"a2":1487.8,"a3":1488.9},{"ts":"2021-06-07T13:31:26","b1":1473.0,"b2":1472.5,"b3":1472.1,"a1":1477.0,"a2":1478.0,"a3":1480.0},{"ts":"2021-06-08T14:47:24","b1":1416.1,"b2":1416.0,"b3":1415.1,"a1":1417.5,"a2":1430.0,"a3":1440.8},{"ts":"2021-06-09T14:08:56","b1":1447.0,"b2":1445.0,"b3":1441.0,"a1":1452.9,"a2":1453.0,"a3":1455.3},{"ts":"2021-06-10T13:45:42","b1":1442.0,"b2":1428.4,"b3":1425.0,"a1":1445.9,"a2":1446.0,"a3":1446.6},{"ts":"2021-06-15T14:00:41","b1":1478.1,"b2":1478.0,"b3":1477.0,"a1":1484.5,"a2":1485.5,"a3":1492.0},{"ts":"2021-06-17T11:28:08","b1":1448.2,"b2":1448.1,"b3":1447.2,"a1":1454.4,"a2":1454.7,"a3":1455.0},{"ts":"2021-06-21T10:07:49","b1":1474.1,"b2":1474.0,"b3":1473.0,"a1":1477.8,"a2":1478.0,"a3":1479.0},{"ts":"2021-06-23T10:17:36","b1":1490.0,"b2":1487.2,"b3":1485.5,"a1":1493.6,"a2":1493.8,"a3":1495.9},{"ts":"2021-06-28T11:20:37","b1":1507.3,"b2":1507.2,"b3":1499.0,"a1":1513.7,"a2":1513.8,"a3":1513.9},{"ts":"2021-07-01T10:41:43","b1":1518.5,"b2":1517.0,"b3":1515.6,"a1":1521.5,"a2":1521.6,"a3":1523.9},{"ts":"2021-07-06T14:26:30","b1":1529.6,"b2":1522.5,"b3":1520.0,"a1":1531.0,"a2":1534.0,"a3":1534.5},{"ts":"2021-07-08T09:11:13","b1":1522.2,"b2":1522.1,"b3":1521.3,"a1":1526.9,"a2":1527.0,"a3":1529.9},{"ts":"2021-07-09T10:23:45","b1":1508.1,"b2":1506.6,"b3":1503.3,"a1":1513.0,"a2":1515.8,"a3":1517.7},{"ts":"2021-07-12T10:41:56","b1":1441.3,"b2":1441.2,"b3":1431.0,"a1":1453.0,"a2":1456.4,"a3":1460.0},{"ts":"2021-07-13T09:37:04","b1":1439.1,"b2":1436.8,"b3":1430.0,"a1":1446.3,"a2":1446.4,"a3":1446.5},{"ts":"2021-07-14T11:19:27","b1":1421.0,"b2":1415.0,"b3":1411.0,"a1":1425.7,"a2":1425.8,"a3":1431.8},{"ts":"2021-07-15T14:46:30","b1":1436.0,"b2":1433.0,"b3":1425.0,"a1":1439.0,"a2":1439.9,"a3":1440.0},{"ts":"2021-07-19T09:52:38","b1":1402.0,"b2":1401.3,"b3":1401.0,"a1":1410.0,"a2":1414.0,"a3":1427.5},{"ts":"2021-07-19T14:07:44","b1":1380.5,"b2":1377.0,"b3":1375.0,"a1":1381.0,"a2":1381.1,"a3":1383.4},{"ts":"2021-07-20T13:54:46","b1":1383.2,"b2":1383.1,"b3":1383.0,"a1":1390.0,"a2":1390.1,"a3":1397.3},{"ts":"2021-07-22T09:37:42","b1":1405.8,"b2":1405.7,"b3":1405.6,"a1":1409.9,"a2":1410.0,"a3":1413.0},{"ts":"2021-07-23T11:08:31","b1":1414.1,"b2":1414.0,"b3":1413.5,"a1":1422.8,"a2":1423.0,"a3":1425.0},{"ts":"2021-07-26T10:50:10","b1":1386.2,"b2":1383.2,"b3":1383.0,"a1":1391.7,"a2":1391.9,"a3":1397.7},{"ts":"2021-07-27T10:50:34","b1":1419.5,"b2":1409.0,"b3":1408.0,"a1":1423.9,"a2":1424.0,"a3":1428.0},{"ts":"2021-07-28T11:24:39","b1":1409.0,"b2":1405.5,"b3":1405.4,"a1":1412.6,"a2":1412.8,"a3":1413.9},{"ts":"2021-07-30T09:09:00","b1":1425.3,"b2":1425.2,"b3":1425.1,"a1":1430.7,"a2":1430.8,"a3":1431.0},{"ts":"2021-08-03T10:42:43","b1":1455.1,"b2":1455.0,"b3":1451.2,"a1":1459.0,"a2":1461.8,"a3":1463.9},{"ts":"2021-08-05T10:22:48","b1":1465.1,"b2":1465.0,"b3":1464.5,"a1":1470.8,"a2":1470.9,"a3":1471.0},{"ts":"2021-08-09T14:21:34","b1":1491.7,"b2":1491.5,"b3":1491.0,"a1":1498.0,"a2":1500.0,"a3":1515.0},{"ts":"2021-08-11T11:16:07","b1":1498.4,"b2":1498.3,"b3":1497.7,"a1":1502.8,"a2":1506.9,"a3":1508.0},{"ts":"2021-08-12T14:27:50","b1":1467.3,"b2":1465.9,"b3":1463.2,"a1":1479.9,"a2":1481.0,"a3":1485.0},{"ts":"2021-08-17T10:16:12","b1":1500.1,"b2":1500.0,"b3":1499.0,"a1":1503.0,"a2":1503.5,"a3":1504.9},{"ts":"2021-08-20T11:22:18","b1":1465.5,"b2":1460.5,"b3":1460.3,"a1":1470.9,"a2":1472.9,"a3":1473.0},{"ts":"2021-08-23T10:22:58","b1":1432.2,"b2":1432.0,"b3":1430.4,"a1":1443.0,"a2":1444.5,"a3":1444.6},{"ts":"2021-08-23T13:56:58","b1":1427.2,"b2":1426.0,"b3":1420.8,"a1":1428.0,"a2":1429.0,"a3":1432.8},{"ts":"2021-08-24T14:06:22","b1":1420.1,"b2":1420.0,"b3":1418.3,"a1":1425.0,"a2":1425.8,"a3":1429.1},{"ts":"2021-08-26T13:15:25","b1":1421.1,"b2":1421.0,"b3":1420.0,"a1":1422.0,"a2":1426.4,"a3":1427.0},{"ts":"2021-08-27T14:24:04","b1":1416.5,"b2":1412.6,"b3":1410.0,"a1":1422.0,"a2":1422.1,"a3":1423.0},{"ts":"2021-09-01T11:08:43","b1":1428.8,"b2":1428.6,"b3":1428.5,"a1":1432.0,"a2":1434.0,"a3":1434.2},{"ts":"2021-09-07T13:24:14","b1":1442.8,"b2":1442.2,"b3":1440.5,"a1":1446.7,"a2":1446.8,"a3":1447.0},{"ts":"2021-09-13T09:16:16","b1":1436.7,"b2":1436.2,"b3":1435.0,"a1":1442.3,"a2":1443.0,"a3":1443.8},{"ts":"2021-09-20T13:01:05","b1":1457.1,"b2":1457.0,"b3":1456.0,"a1":1460.2,"a2":1460.3,"a3":1462.4},{"ts":"2021-09-22T10:13:41","b1":1431.0,"b2":1430.5,"b3":1428.0,"a1":1434.8,"a2":1436.3,"a3":1439.1},{"ts":"2021-09-27T14:27:07","b1":1434.1,"b2":1434.0,"b3":1429.6,"a1":1436.6,"a2":1439.9,"a3":1444.0},{"ts":"2021-09-30T10:59:49","b1":1447.1,"b2":1447.0,"b3":1446.8,"a1":1449.7,"a2":1451.0,"a3":1452.6},{"ts":"2021-10-06T13:51:49","b1":1446.9,"b2":1445.8,"b3":1445.7,"a1":1449.9,"a2":1450.5,"a3":1451.0},{"ts":"2021-10-13T09:50:56","b1":1509.2,"b2":1509.0,"b3":1507.0,"a1":1511.8,"a2":1511.9,"a3":1512.0},{"ts":"2021-10-18T13:03:19","b1":1513.1,"b2":1513.0,"b3":1512.5,"a1":1514.1,"a2":1514.2,"a3":1517.9},{"ts":"2021-10-22T09:49:30","b1":1487.9,"b2":1487.8,"b3":1485.6,"a1":1491.7,"a2":1491.8,"a3":1494.0},{"ts":"2021-10-25T10:17:29","b1":1486.1,"b2":1485.2,"b3":1484.2,"a1":1486.9,"a2":1487.0,"a3":1487.5},{"ts":"2021-10-26T09:00:56","b1":1474.2,"b2":1473.5,"b3":1473.2,"a1":1477.0,"a2":1478.0,"a3":1478.5},{"ts":"2021-10-27T10:32:04","b1":1492.0,"b2":1491.5,"b3":1491.2,"a1":1492.6,"a2":1493.7,"a3":1494.0},{"ts":"2021-10-27T13:34:55","b1":1510.8,"b2":1510.7,"b3":1510.2,"a1":1513.8,"a2":1513.9,"a3":1514.9},{"ts":"2021-10-28T11:25:59","b1":1526.2,"b2":1525.1,"b3":1523.5,"a1":1527.0,"a2":1527.8,"a3":1527.9},{"ts":"2021-10-29T09:41:11","b1":1529.8,"b2":1529.7,"b3":1528.2,"a1":1530.8,"a2":1531.0,"a3":1531.1},{"ts":"2021-10-29T14:16:12","b1":1534.1,"b2":1534.0,"b3":1533.0,"a1":1536.1,"a2":1536.2,"a3":1536.6},{"ts":"2021-11-01T14:14:37","b1":1518.0,"b2":1517.0,"b3":1516.8,"a1":1520.0,"a2":1521.0,"a3":1521.2},{"ts":"2021-11-02T14:13:12","b1":1523.8,"b2":1523.1,"b3":1523.0,"a1":1524.7,"a2":1524.8,"a3":1524.9},{"ts":"2021-11-03T13:00:20","b1":1518.2,"b2":1518.1,"b3":1517.1,"a1":1521.5,"a2":1523.5,"a3":1523.8},{"ts":"2021-11-04T10:15:22","b1":1528.0,"b2":1526.5,"b3":1526.1,"a1":1529.2,"a2":1529.4,"a3":1529.5},{"ts":"2021-11-04T14:29:55","b1":1525.0,"b2":1524.1,"b3":1523.7,"a1":1526.8,"a2":1527.5,"a3":1527.7},{"ts":"2021-11-08T13:43:59","b1":1540.0,"b2":1539.2,"b3":1539.1,"a1":1540.7,"a2":1540.8,"a3":1541.0},{"ts":"2021-11-09T13:51:37","b1":1524.2,"b2":1522.0,"b3":1521.0,"a1":1524.3,"a2":1525.0,"a3":1527.3},{"ts":"2021-11-10T14:04:49","b1":1531.0,"b2":1528.7,"b3":1528.6,"a1":1532.0,"a2":1532.7,"a3":1532.9},{"ts":"2021-11-11T10:53:14","b1":1512.5,"b2":1512.0,"b3":1511.5,"a1":1513.8,"a2":1514.7,"a3":1515.2},{"ts":"2021-11-11T14:09:25","b1":1522.1,"b2":1522.0,"b3":1521.0,"a1":1525.4,"a2":1525.5,"a3":1525.7},{"ts":"2021-11-12T11:19:31","b1":1509.9,"b2":1508.3,"b3":1508.2,"a1":1511.5,"a2":1511.7,"a3":1512.3},{"ts":"2021-11-15T09:23:15","b1":1532.4,"b2":1531.5,"b3":1531.2,"a1":1533.4,"a2":1534.0,"a3":1534.4},{"ts":"2021-11-15T13:13:50","b1":1529.1,"b2":1529.0,"b3":1528.3,"a1":1529.9,"a2":1530.0,"a3":1530.6},{"ts":"2021-11-15T14:26:12","b1":1528.1,"b2":1527.1,"b3":1526.0,"a1":1529.2,"a2":1529.6,"a3":1529.8},{"ts":"2021-11-16T10:56:15","b1":1521.8,"b2":1521.7,"b3":1521.5,"a1":1522.5,"a2":1523.6,"a3":1523.7},{"ts":"2021-11-16T13:43:07","b1":1517.6,"b2":1517.5,"b3":1517.4,"a1":1519.0,"a2":1519.7,"a3":1519.8},{"ts":"2021-11-17T09:23:43","b1":1516.3,"b2":1516.2,"b3":1516.0,"a1":1516.5,"a2":1516.9,"a3":1517.0},{"ts":"2021-11-17T11:15:27","b1":1516.7,"b2":1516.5,"b3":1516.2,"a1":1517.0,"a2":1517.1,"a3":1517.2},{"ts":"2021-11-17T13:57:13","b1":1519.1,"b2":1519.0,"b3":1518.7,"a1":1519.2,"a2":1519.4,"a3":1519.5},{"ts":"2021-11-18T09:27:19","b1":1521.3,"b2":1521.2,"b3":1521.1,"a1":1521.4,"a2":1521.5,"a3":1521.6},{"ts":"2021-11-18T10:31:31","b1":1513.9,"b2":1513.8,"b3":1513.7,"a1":1514.0,"a2":1514.1,"a3":1514.5},{"ts":"2021-11-18T13:13:46","b1":1515.3,"b2":1515.2,"b3":1515.1,"a1":1515.5,"a2":1515.6,"a3":1515.9},{"ts":"2021-11-18T14:15:52","b1":1509.7,"b2":1508.8,"b3":1508.6,"a1":1509.9,"a2":1510.0,"a3":1510.3},{"ts":"2021-11-19T09:49:19","b1":1508.8,"b2":1508.7,"b3":1508.6,"a1":1508.9,"a2":1509.0,"a3":1509.1},{"ts":"2021-11-19T10:21:09","b1":1513.2,"b2":1513.1,"b3":1513.0,"a1":1513.4,"a2":1513.5,"a3":1513.6},{"ts":"2021-11-19T10:39:51","b1":1518.5,"b2":1518.4,"b3":1518.3,"a1":1518.6,"a2":1518.7,"a3":1518.8},{"ts":"2021-11-19T11:02:12","b1":1521.7,"b2":1521.5,"b3":1521.4,"a1":1521.8,"a2":1522.0,"a3":1522.1},{"ts":"2021-11-19T13:13:38","b1":1516.8,"b2":1516.6,"b3":1516.5,"a1":1517.2,"a2":1517.3,"a3":1517.4},{"ts":"2021-11-22T09:18:57","b1":1510.1,"b2":1509.9,"b3":1509.8,"a1":1510.4,"a2":1510.5,"a3":1510.6},{"ts":"2021-11-22T10:06:17","b1":1509.9,"b2":1509.7,"b3":1509.6,"a1":1510.2,"a2":1510.3,"a3":1510.4},{"ts":"2021-11-22T10:38:53","b1":1512.3,"b2":1512.2,"b3":1512.1,"a1":1512.6,"a2":1512.7,"a3":1512.8},{"ts":"2021-11-22T11:20:52","b1":1514.5,"b2":1514.4,"b3":1514.3,"a1":1514.7,"a2":1514.8,"a3":1514.9},{"ts":"2021-11-22T13:16:00","b1":1515.7,"b2":1515.5,"b3":1515.4,"a1":1515.9,"a2":1516.0,"a3":1516.1},{"ts":"2021-11-22T14:07:12","b1":1514.3,"b2":1514.2,"b3":1514.1,"a1":1514.7,"a2":1514.8,"a3":1514.9},{"ts":"2021-11-23T09:42:09","b1":1524.1,"b2":1524.0,"b3":1523.9,"a1":1524.2,"a2":1524.3,"a3":1524.4},{"ts":"2021-11-23T10:07:43","b1":1527.1,"b2":1527.0,"b3":1526.9,"a1":1527.3,"a2":1527.4,"a3":1527.5},{"ts":"2021-11-23T10:38:36","b1":1529.1,"b2":1529.0,"b3":1528.9,"a1":1529.3,"a2":1529.4,"a3":1529.5},{"ts":"2021-11-23T11:00:46","b1":1527.9,"b2":1527.8,"b3":1527.7,"a1":1528.1,"a2":1528.2,"a3":1528.3},{"ts":"2021-11-23T13:05:03","b1":1530.9,"b2":1530.8,"b3":1530.6,"a1":1531.1,"a2":1531.2,"a3":1531.3},{"ts":"2021-11-23T13:39:33","b1":1531.5,"b2":1531.4,"b3":1531.3,"a1":1531.6,"a2":1531.7,"a3":1531.8},{"ts":"2021-11-23T14:17:22","b1":1530.8,"b2":1530.7,"b3":1530.6,"a1":1530.9,"a2":1531.0,"a3":1531.1},{"ts":"2021-11-24T09:16:42","b1":1555.0,"b2":1554.9,"b3":1554.8,"a1":1555.1,"a2":1555.3,"a3":1555.4},{"ts":"2021-11-24T09:44:24","b1":1558.0,"b2":1557.9,"b3":1557.8,"a1":1558.1,"a2":1558.2,"a3":1558.3},{"ts":"2021-11-24T10:08:28","b1":1556.9,"b2":1556.8,"b3":1556.7,"a1":1557.0,"a2":1557.1,"a3":1557.2},{"ts":"2021-11-24T10:29:45","b1":1558.1,"b2":1558.0,"b3":1557.9,"a1":1558.2,"a2":1558.4,"a3":1558.5},{"ts":"2021-11-24T10:55:10","b1":1558.2,"b2":1558.1,"b3":1558.0,"a1":1558.4,"a2":1558.5,"a3":1558.6},{"ts":"2021-11-24T11:24:46","b1":1560.5,"b2":1560.4,"b3":1560.3,"a1":1560.6,"a2":1560.7,"a3":1560.8},{"ts":"2021-11-24T13:06:37","b1":1562.1,"b2":1562.0,"b3":1561.8,"a1":1562.3,"a2":1562.4,"a3":1562.5},{"ts":"2021-11-24T13:29:52","b1":1561.5,"b2":1561.4,"b3":1561.3,"a1":1561.7,"a2":1561.8,"a3":1561.9},{"ts":"2021-11-24T13:55:03","b1":1561.2,"b2":1561.1,"b3":1561.0,"a1":1561.4,"a2":1561.5,"a3":1561.6},{"ts":"2021-11-25T09:12:57","b1":1566.0,"b2":1565.9,"b3":1565.8,"a1":1566.2,"a2":1566.3,"a3":1566.4},{"ts":"2021-11-25T09:42:17","b1":1566.9,"b2":1566.8,"b3":1566.7,"a1":1567.0,"a2":1567.2,"a3":1567.3},{"ts":"2021-11-25T10:07:22","b1":1564.7,"b2":1564.6,"b3":1564.5,"a1":1564.8,"a2":1564.9,"a3":1565.0},{"ts":"2021-11-25T10:34:43","b1":1566.2,"b2":1566.1,"b3":1566.0,"a1":1566.3,"a2":1566.4,"a3":1566.5},{"ts":"2021-11-25T10:54:58","b1":1567.2,"b2":1567.1,"b3":1567.0,"a1":1567.3,"a2":1567.4,"a3":1567.5},{"ts":"2021-11-25T11:20:19","b1":1566.7,"b2":1566.6,"b3":1566.5,"a1":1566.8,"a2":1566.9,"a3":1567.0},{"ts":"2021-11-25T13:11:25","b1":1565.6,"b2":1565.5,"b3":1565.4,"a1":1565.7,"a2":1565.8,"a3":1565.9},{"ts":"2021-11-25T13:33:59","b1":1566.4,"b2":1566.3,"b3":1566.2,"a1":1566.5,"a2":1566.6,"a3":1566.7},{"ts":"2021-11-25T14:00:50","b1":1564.8,"b2":1564.7,"b3":1564.6,"a1":1564.9,"a2":1565.0,"a3":1565.1},{"ts":"2021-11-26T09:05:12","b1":1572.4,"b2":1572.3,"b3":1572.2,"a1":1572.5,"a2":1572.6,"a3":1572.7},{"ts":"2021-11-26T09:31:48","b1":1571.3,"b2":1571.2,"b3":1571.1,"a1":1571.4,"a2":1571.5,"a3":1571.6},{"ts":"2021-11-26T09:59:54","b1":1570.9,"b2":1570.8,"b3":1570.7,"a1":1571.0,"a2":1571.1,"a3":1571.2},{"ts":"2021-11-26T10:25:37","b1":1571.6,"b2":1571.5,"b3":1571.4,"a1":1571.7,"a2":1571.8,"a3":1571.9},{"ts":"2021-11-26T10:53:45","b1":1570.1,"b2":1570.0,"b3":1569.9,"a1":1570.2,"a2":1570.3,"a3":1570.4},{"ts":"2021-11-26T11:17:20","b1":1570.7,"b2":1570.6,"b3":1570.5,"a1":1570.9,"a2":1571.0,"a3":1571.1},{"ts":"2021-11-26T13:09:07","b1":1570.0,"b2":1569.9,"b3":1569.8,"a1":1570.1,"a2":1570.2,"a3":1570.3},{"ts":"2021-11-26T13:27:30","b1":1569.1,"b2":1569.0,"b3":1568.9,"a1":1569.3,"a2":1569.4,"a3":1569.5},{"ts":"2021-11-26T14:01:29","b1":1567.4,"b2":1567.3,"b3":1567.2,"a1":1567.5,"a2":1567.6,"a3":1567.7},{"ts":"2021-11-29T09:10:45","b1":1554.7,"b2":1554.6,"b3":1554.5,"a1":1554.8,"a2":1554.9,"a3":1555.0},{"ts":"2021-11-29T09:44:22","b1":1553.7,"b2":1553.6,"b3":1553.5,"a1":1553.8,"a2":1554.0,"a3":1554.1},{"ts":"2021-11-29T10:21:52","b1":1553.0,"b2":1552.9,"b3":1552.8,"a1":1553.2,"a2":1553.3,"a3":1553.4},{"ts":"2021-11-29T10:48:16","b1":1553.6,"b2":1553.5,"b3":1553.4,"a1":1553.8,"a2":1553.9,"a3":1554.0},{"ts":"2021-11-29T11:14:42","b1":1553.2,"b2":1553.1,"b3":1553.0,"a1":1553.3,"a2":1553.4,"a3":1553.5},{"ts":"2021-11-29T13:10:25","b1":1553.5,"b2":1553.4,"b3":1553.3,"a1":1553.6,"a2":1553.7,"a3":1553.8},{"ts":"2021-11-29T13:36:58","b1":1551.7,"b2":1551.6,"b3":1551.5,"a1":1551.8,"a2":1551.9,"a3":1552.0},{"ts":"2021-11-29T14:02:33","b1":1552.0,"b2":1551.9,"b3":1551.8,"a1":1552.1,"a2":1552.2,"a3":1552.3},{"ts":"2021-11-30T09:10:03","b1":1537.9,"b2":1537.8,"b3":1537.7,"a1":1538.0,"a2":1538.1,"a3":1538.2},{"ts":"2021-11-30T09:41:52","b1":1536.9,"b2":1536.8,"b3":1536.7,"a1":1537.0,"a2":1537.1,"a3":1537.2},{"ts":"2021-11-30T10:13:30","b1":1537.2,"b2":1537.1,"b3":1537.0,"a1":1537.4,"a2":1537.5,"a3":1537.6},{"ts":"2021-11-30T10:40:59","b1":1536.5,"b2":1536.4,"b3":1536.3,"a1":1536.6,"a2":1536.7,"a3":1536.8},{"ts":"2021-11-30T11:05:47","b1":1535.1,"b2":1535.0,"b3":1534.9,"a1":1535.2,"a2":1535.3,"a3":1535.4},{"ts":"2021-11-30T13:07:15","b1":1534.5,"b2":1534.4,"b3":1534.3,"a1":1534.7,"a2":1534.8,"a3":1534.9},{"ts":"2021-11-30T13:27:43","b1":1537.3,"b2":1537.2,"b3":1537.1,"a1":1537.4,"a2":1537.5,"a3":1537.6},{"ts":"2021-11-30T13:47:31","b1":1537.0,"b2":1536.9,"b3":1536.8,"a1":1537.2,"a2":1537.3,"a3":1537.4},{"ts":"2021-12-01T09:05:17","b1":1555.5,"b2":1555.4,"b3":1555.3,"a1":1555.6,"a2":1555.7,"a3":1555.8},{"ts":"2021-12-01T09:37:58","b1":1556.8,"b2":1556.7,"b3":1556.6,"a1":1556.9,"a2":1557.0,"a3":1557.1},{"ts":"2021-12-01T10:05:51","b1":1556.1,"b2":1556.0,"b3":1555.9,"a1":1556.2,"a2":1556.3,"a3":1556.4},{"ts":"2021-12-01T10:25:21","b1":1539.2,"b2":1539.1,"b3":1539.0,"a1":1539.3,"a2":1539.4,"a3":1539.5},{"ts":"2021-12-01T10:55:23","b1":1547.2,"b2":1547.1,"b3":1547.0,"a1":1547.3,"a2":1547.4,"a3":1547.5},{"ts":"2021-12-01T11:19:48","b1":1545.3,"b2":1545.2,"b3":1545.1,"a1":1545.5,"a2":1545.6,"a3":1545.7},{"ts":"2021-12-01T13:07:38","b1":1549.5,"b2":1549.3,"b3":1549.2,"a1":1549.6,"a2":1549.7,"a3":1549.8},{"ts":"2021-12-01T13:29:22","b1":1550.2,"b2":1550.1,"b3":1550.0,"a1":1550.3,"a2":1550.4,"a3":1550.5},{"ts":"2021-12-01T13:49:20","b1":1551.0,"b2":1550.9,"b3":1550.8,"a1":1551.2,"a2":1551.3,"a3":1551.4},{"ts":"2021-12-02T09:08:38","b1":1543.1,"b2":1543.0,"b3":1542.9,"a1":1543.2,"a2":1543.3,"a3":1543.4},{"ts":"2021-12-02T09:38:17","b1":1541.2,"b2":1541.1,"b3":1541.0,"a1":1541.3,"a2":1541.4,"a3":1541.5},{"ts":"2021-12-02T10:09:26","b1":1540.8,"b2":1540.7,"b3":1540.6,"a1":1540.9,"a2":1541.0,"a3":1541.1},{"ts":"2021-12-02T10:37:04","b1":1541.9,"b2":1541.8,"b3":1541.7,"a1":1542.0,"a2":1542.1,"a3":1542.2},{"ts":"2021-12-02T11:00:43","b1":1541.7,"b2":1541.6,"b3":1541.5,"a1":1541.8,"a2":1541.9,"a3":1542.0},{"ts":"2021-12-02T13:08:19","b1":1539.6,"b2":1539.5,"b3":1539.4,"a1":1539.7,"a2":1539.8,"a3":1539.9},{"ts":"2021-12-02T13:28:03","b1":1540.0,"b2":1539.9,"b3":1539.8,"a1":1540.1,"a2":1540.2,"a3":1540.3},{"ts":"2021-12-02T13:47:02","b1":1540.6,"b2":1540.5,"b3":1540.4,"a1":1540.7,"a2":1540.8,"a3":1540.9},{"ts":"2021-12-03T09:06:27","b1":1519.5,"b2":1519.4,"b3":1519.3,"a1":1519.6,"a2":1519.7,"a3":1519.8},{"ts":"2021-12-03T09:37:38","b1":1515.0,"b2":1514.9,"b3":1514.8,"a1":1515.1,"a2":1515.2,"a3":1515.3},{"ts":"2021-12-03T10:10:16","b1":1512.7,"b2":1512.6,"b3":1512.5,"a1":1512.8,"a2":1512.9,"a3":1513.0},{"ts":"2021-12-03T10:35:23","b1":1510.4,"b2":1510.3,"b3":1510.2,"a1":1510.5,"a2":1510.6,"a3":1510.7},{"ts":"2021-12-03T11:00:25","b1":1511.6,"b2":1511.5,"b3":1511.4,"a1":1511.7,"a2":1511.8,"a3":1511.9},{"ts":"2021-12-03T13:09:49","b1":1513.0,"b2":1512.9,"b3":1512.8,"a1":1513.1,"a2":1513.2,"a3":1513.3},{"ts":"2021-12-03T13:28:17","b1":1511.5,"b2":1511.4,"b3":1511.3,"a1":1511.6,"a2":1511.7,"a3":1511.8},{"ts":"2021-12-03T13:51:07","b1":1512.3,"b2":1512.2,"b3":1512.1,"a1":1512.4,"a2":1512.5,"a3":1512.6},{"ts":"2021-12-06T09:05:54","b1":1480.0,"b2":1479.9,"b3":1479.8,"a1":1480.1,"a2":1480.2,"a3":1480.3},{"ts":"2021-12-06T09:35:38","b1":1480.8,"b2":1480.7,"b3":1480.6,"a1":1480.9,"a2":1481.0,"a3":1481.1},{"ts":"2021-12-06T10:04:57","b1":1479.4,"b2":1479.3,"b3":1479.2,"a1":1479.5,"a2":1479.6,"a3":1479.7},{"ts":"2021-12-06T10:27:17","b1":1480.9,"b2":1480.8,"b3":1480.7,"a1":1481.0,"a2":1481.1,"a3":1481.2},{"ts":"2021-12-06T10:52:32","b1":1479.3,"b2":1479.2,"b3":1479.1,"a1":1479.4,"a2":1479.5,"a3":1479.6},{"ts":"2021-12-06T11:16:08","b1":1478.8,"b2":1478.7,"b3":1478.6,"a1":1478.9,"a2":1479.0,"a3":1479.1},{"ts":"2021-12-06T13:07:43","b1":1478.4,"b2":1478.3,"b3":1478.2,"a1":1478.5,"a2":1478.6,"a3":1478.7},{"ts":"2021-12-06T13:30:19","b1":1477.0,"b2":1476.9,"b3":1476.8,"a1":1477.2,"a2":1477.3,"a3":1477.4},{"ts":"2021-12-06T13:52:04","b1":1476.5,"b2":1476.4,"b3":1476.3,"a1":1476.6,"a2":1476.7,"a3":1476.8},{"ts":"2021-12-06T14:16:55","b1":1479.0,"b2":1478.9,"b3":1478.8,"a1":1479.1,"a2":1479.2,"a3":1479.3},{"ts":"2021-12-07T09:07:24","b1":1505.1,"b2":1505.0,"b3":1504.9,"a1":1505.3,"a2":1505.4,"a3":1505.5},{"ts":"2021-12-07T09:39:17","b1":1508.8,"b2":1508.7,"b3":1508.6,"a1":1508.9,"a2":1509.0,"a3":1509.1},{"ts":"2021-12-07T10:05:58","b1":1510.2,"b2":1510.1,"b3":1510.0,"a1":1510.3,"a2":1510.4,"a3":1510.5},{"ts":"2021-12-07T10:31:17","b1":1509.9,"b2":1509.8,"b3":1509.7,"a1":1510.0,"a2":1510.1,"a3":1510.2},{"ts":"2021-12-07T10:57:08","b1":1511.4,"b2":1511.3,"b3":1511.2,"a1":1511.5,"a2":1511.6,"a3":1511.7},{"ts":"2021-12-07T11:22:41","b1":1511.9,"b2":1511.8,"b3":1511.7,"a1":1512.0,"a2":1512.1,"a3":1512.2},{"ts":"2021-12-07T13:07:21","b1":1512.5,"b2":1512.4,"b3":1512.3,"a1":1512.7,"a2":1512.8,"a3":1512.9},{"ts":"2021-12-07T13:27:36","b1":1513.5,"b2":1513.4,"b3":1513.3,"a1":1513.6,"a2":1513.7,"a3":1513.8},{"ts":"2021-12-07T13:52:09","b1":1513.0,"b2":1512.9,"b3":1512.8,"a1":1513.1,"a2":1513.2,"a3":1513.3},{"ts":"2021-12-07T14:16:19","b1":1513.8,"b2":1513.7,"b3":1513.6,"a1":1513.9,"a2":1514.0,"a3":1514.1},{"ts":"2021-12-08T09:13:22","b1":1511.5,"b2":1511.4,"b3":1511.3,"a1":1511.7,"a2":1511.8,"a3":1511.9},{"ts":"2021-12-08T10:10:41","b1":1512.5,"b2":1512.2,"b3":1512.0,"a1":1512.7,"a2":1512.8,"a3":1512.9},{"ts":"2021-12-08T10:37:53","b1":1511.5,"b2":1511.3,"b3":1511.3,"a1":1511.7,"a2":1511.8,"a3":1511.9},{"ts":"2021-12-08T11:03:34","b1":1511.1,"b2":1511.0,"b3":1510.9,"a1":1511.7,"a2":1511.8,"a3":1511.9},{"ts":"2021-12-08T11:22:19","b1":1511.9,"b2":1511.6,"b3":1511.5,"a1":1512.0,"a2":1512.2,"a3":1512.3},{"ts":"2021-12-08T13:11:37","b1":1515.7,"b2":1515.5,"b3":1515.4,"a1":1515.8,"a2":1515.9,"a3":1516.0},{"ts":"2021-12-08T13:34:23","b1":1513.8,"b2":1513.7,"b3":1513.6,"a1":1513.9,"a2":1514.0,"a3":1514.1},{"ts":"2021-12-08T13:53:56","b1":1511.2,"b2":1511.1,"b3":1511.0,"a1":1511.4,"a2":1511.5,"a3":1511.6},{"ts":"2021-12-08T14:13:38","b1":1514.9,"b2":1514.8,"b3":1514.7,"a1":1515.0,"a2":1515.4,"a3":1515.5},{"ts":"2021-12-08T14:46:36","b1":1511.0,"b2":1510.9,"b3":1510.8,"a1":1511.4,"a2":1511.5,"a3":1511.6},{"ts":"2021-12-09T09:30:34","b1":1511.7,"b2":1511.6,"b3":1511.5,"a1":1511.8,"a2":1511.9,"a3":1512.0},{"ts":"2021-12-09T09:59:22","b1":1514.0,"b2":1513.9,"b3":1513.8,"a1":1514.2,"a2":1514.3,"a3":1514.4},{"ts":"2021-12-09T10:30:23","b1":1512.7,"b2":1512.6,"b3":1512.5,"a1":1512.8,"a2":1512.9,"a3":1513.0},{"ts":"2021-12-09T10:59:28","b1":1513.7,"b2":1513.6,"b3":1513.5,"a1":1513.8,"a2":1513.9,"a3":1514.0},{"ts":"2021-12-09T11:24:12","b1":1515.3,"b2":1515.2,"b3":1515.1,"a1":1515.4,"a2":1515.5,"a3":1515.6},{"ts":"2021-12-09T13:16:09","b1":1520.1,"b2":1520.0,"b3":1519.8,"a1":1520.2,"a2":1520.6,"a3":1520.7},{"ts":"2021-12-09T13:39:55","b1":1519.7,"b2":1519.6,"b3":1519.5,"a1":1519.9,"a2":1520.0,"a3":1520.1},{"ts":"2021-12-09T14:00:25","b1":1526.1,"b2":1526.0,"b3":1525.9,"a1":1526.2,"a2":1526.7,"a3":1526.8},{"ts":"2021-12-09T14:19:40","b1":1526.0,"b2":1525.9,"b3":1525.8,"a1":1526.1,"a2":1526.2,"a3":1526.3},{"ts":"2021-12-10T09:14:38","b1":1529.6,"b2":1529.5,"b3":1529.2,"a1":1529.8,"a2":1529.9,"a3":1530.0},{"ts":"2021-12-10T09:50:07","b1":1531.5,"b2":1531.3,"b3":1531.1,"a1":1531.6,"a2":1531.7,"a3":1531.8},{"ts":"2021-12-10T10:25:50","b1":1529.7,"b2":1529.6,"b3":1529.4,"a1":1529.9,"a2":1530.0,"a3":1530.2},{"ts":"2021-12-10T10:49:07","b1":1529.5,"b2":1529.4,"b3":1529.3,"a1":1529.7,"a2":1529.8,"a3":1529.9},{"ts":"2021-12-10T11:12:29","b1":1526.8,"b2":1526.7,"b3":1526.6,"a1":1526.9,"a2":1527.0,"a3":1527.1},{"ts":"2021-12-10T13:08:39","b1":1522.1,"b2":1522.0,"b3":1521.9,"a1":1522.4,"a2":1522.5,"a3":1522.6},{"ts":"2021-12-10T13:25:58","b1":1521.0,"b2":1520.9,"b3":1520.5,"a1":1521.1,"a2":1521.2,"a3":1521.3},{"ts":"2021-12-10T13:42:50","b1":1519.0,"b2":1518.9,"b3":1518.6,"a1":1519.1,"a2":1519.2,"a3":1519.3},{"ts":"2021-12-10T14:00:57","b1":1515.1,"b2":1515.0,"b3":1514.6,"a1":1515.4,"a2":1515.8,"a3":1515.9},{"ts":"2021-12-10T14:17:06","b1":1524.0,"b2":1523.7,"b3":1523.5,"a1":1524.1,"a2":1524.2,"a3":1524.3},{"ts":"2021-12-13T09:06:41","b1":1526.2,"b2":1526.1,"b3":1526.0,"a1":1526.4,"a2":1526.5,"a3":1526.6},{"ts":"2021-12-13T09:40:05","b1":1523.5,"b2":1523.4,"b3":1523.3,"a1":1523.6,"a2":1523.9,"a3":1524.0},{"ts":"2021-12-13T10:10:59","b1":1524.7,"b2":1524.5,"b3":1524.3,"a1":1524.8,"a2":1524.9,"a3":1525.0},{"ts":"2021-12-13T10:43:05","b1":1525.8,"b2":1525.7,"b3":1525.6,"a1":1525.9,"a2":1526.0,"a3":1526.2},{"ts":"2021-12-13T11:15:06","b1":1524.0,"b2":1523.9,"b3":1523.8,"a1":1524.3,"a2":1524.4,"a3":1524.5},{"ts":"2021-12-13T13:10:22","b1":1520.5,"b2":1520.4,"b3":1520.3,"a1":1521.0,"a2":1521.2,"a3":1521.3},{"ts":"2021-12-13T13:35:40","b1":1520.2,"b2":1519.8,"b3":1519.7,"a1":1520.3,"a2":1520.4,"a3":1520.5},{"ts":"2021-12-13T13:55:13","b1":1523.0,"b2":1522.9,"b3":1522.8,"a1":1523.5,"a2":1523.6,"a3":1523.7},{"ts":"2021-12-13T14:16:37","b1":1516.8,"b2":1516.5,"b3":1516.4,"a1":1517.0,"a2":1517.3,"a3":1517.5},{"ts":"2021-12-14T09:08:18","b1":1524.2,"b2":1524.1,"b3":1524.0,"a1":1524.3,"a2":1524.4,"a3":1524.5},{"ts":"2021-12-14T09:37:37","b1":1523.0,"b2":1522.9,"b3":1522.8,"a1":1523.2,"a2":1523.3,"a3":1523.4},{"ts":"2021-12-14T10:01:45","b1":1528.6,"b2":1528.4,"b3":1528.3,"a1":1528.9,"a2":1529.0,"a3":1529.1},{"ts":"2021-12-14T10:28:29","b1":1527.0,"b2":1526.9,"b3":1526.8,"a1":1527.2,"a2":1527.5,"a3":1527.6},{"ts":"2021-12-14T10:57:30","b1":1524.0,"b2":1523.8,"b3":1523.7,"a1":1524.1,"a2":1524.2,"a3":1524.4},{"ts":"2021-12-14T11:18:11","b1":1524.8,"b2":1524.7,"b3":1524.5,"a1":1525.0,"a2":1525.1,"a3":1525.2},{"ts":"2021-12-14T13:11:44","b1":1519.7,"b2":1519.6,"b3":1519.5,"a1":1519.8,"a2":1519.9,"a3":1520.0},{"ts":"2021-12-14T13:32:32","b1":1516.6,"b2":1516.5,"b3":1516.4,"a1":1516.7,"a2":1516.8,"a3":1516.9},{"ts":"2021-12-14T13:53:27","b1":1517.1,"b2":1517.0,"b3":1516.9,"a1":1517.2,"a2":1517.3,"a3":1517.4},{"ts":"2021-12-14T14:10:26","b1":1515.1,"b2":1515.0,"b3":1514.9,"a1":1516.0,"a2":1516.1,"a3":1516.2},{"ts":"2021-12-15T09:00:28","b1":1518.5,"b2":1518.1,"b3":1518.0,"a1":1518.8,"a2":1518.9,"a3":1519.0},{"ts":"2021-12-15T09:31:46","b1":1518.1,"b2":1518.0,"b3":1517.9,"a1":1518.3,"a2":1518.4,"a3":1518.5},{"ts":"2021-12-15T10:09:25","b1":1518.2,"b2":1518.1,"b3":1518.0,"a1":1518.3,"a2":1518.4,"a3":1518.5},{"ts":"2021-12-15T10:40:51","b1":1518.0,"b2":1517.9,"b3":1517.8,"a1":1518.1,"a2":1518.2,"a3":1518.3},{"ts":"2021-12-15T11:05:32","b1":1524.7,"b2":1524.5,"b3":1524.4,"a1":1524.8,"a2":1524.9,"a3":1525.0},{"ts":"2021-12-15T11:26:31","b1":1524.6,"b2":1524.4,"b3":1524.3,"a1":1525.0,"a2":1525.1,"a3":1525.2},{"ts":"2021-12-15T13:18:00","b1":1522.9,"b2":1522.2,"b3":1522.1,"a1":1523.0,"a2":1523.1,"a3":1523.2},{"ts":"2021-12-15T13:38:53","b1":1520.3,"b2":1520.1,"b3":1520.0,"a1":1520.5,"a2":1520.6,"a3":1520.7},{"ts":"2021-12-15T13:57:42","b1":1517.5,"b2":1517.4,"b3":1517.3,"a1":1517.6,"a2":1517.7,"a3":1517.8},{"ts":"2021-12-15T14:18:23","b1":1521.5,"b2":1521.4,"b3":1521.2,"a1":1521.6,"a2":1521.7,"a3":1522.0},{"ts":"2021-12-16T09:15:28","b1":1525.3,"b2":1525.2,"b3":1525.1,"a1":1525.5,"a2":1525.6,"a3":1525.7},{"ts":"2021-12-16T09:50:16","b1":1523.5,"b2":1523.4,"b3":1523.3,"a1":1523.6,"a2":1523.8,"a3":1523.9},{"ts":"2021-12-16T10:21:59","b1":1521.4,"b2":1521.0,"b3":1520.9,"a1":1521.5,"a2":1521.6,"a3":1521.7},{"ts":"2021-12-16T10:49:00","b1":1518.6,"b2":1518.5,"b3":1518.4,"a1":1518.8,"a2":1518.9,"a3":1519.0},{"ts":"2021-12-16T11:17:23","b1":1520.1,"b2":1519.8,"b3":1519.7,"a1":1520.2,"a2":1520.3,"a3":1520.4},{"ts":"2021-12-16T13:10:14","b1":1517.1,"b2":1517.0,"b3":1516.9,"a1":1517.2,"a2":1517.5,"a3":1517.6},{"ts":"2021-12-16T13:33:49","b1":1514.3,"b2":1514.2,"b3":1514.1,"a1":1514.4,"a2":1514.8,"a3":1514.9},{"ts":"2021-12-16T13:57:30","b1":1512.1,"b2":1512.0,"b3":1511.9,"a1":1512.4,"a2":1512.5,"a3":1512.6}];
+
+/* VN30F2112 daily bid1 close prices (2021-04-19 → 2021-12-16) */
+const VN30F_DAILY = {"2021-04-19":1309.1,"2021-04-20":1295.0,"2021-04-22":1261.2,"2021-04-23":1290.9,"2021-04-26":1255.1,"2021-04-27":1256.7,"2021-04-28":1263.6,"2021-04-29":1294.2,"2021-05-04":1312.0,"2021-05-05":1327.2,"2021-05-06":1319.9,"2021-05-07":1306.0,"2021-05-10":1350.1,"2021-05-11":1328.6,"2021-05-12":1362.5,"2021-05-13":1345.3,"2021-05-14":1361.6,"2021-05-17":1355.3,"2021-05-18":1355.5,"2021-05-19":1380.0,"2021-05-20":1381.6,"2021-05-21":1397.3,"2021-05-24":1402.6,"2021-05-25":1425.3,"2021-05-26":1434.1,"2021-05-27":1416.0,"2021-05-28":1444.3,"2021-05-31":1459.0,"2021-06-01":1466.8,"2021-06-02":1465.7,"2021-06-03":1486.1,"2021-06-04":1493.8,"2021-06-07":1470.0,"2021-06-08":1416.1,"2021-06-09":1443.2,"2021-06-10":1432.2,"2021-06-11":1464.0,"2021-06-14":1463.1,"2021-06-15":1475.1,"2021-06-16":1463.1,"2021-06-17":1463.0,"2021-06-18":1470.3,"2021-06-21":1463.5,"2021-06-22":1480.0,"2021-06-23":1479.2,"2021-06-24":1476.1,"2021-06-25":1486.2,"2021-06-28":1511.4,"2021-06-29":1520.2,"2021-06-30":1520.5,"2021-07-01":1537.5,"2021-07-02":1538.0,"2021-07-05":1552.3,"2021-07-06":1500.0,"2021-07-07":1526.0,"2021-07-08":1503.2,"2021-07-09":1482.1,"2021-07-12":1418.0,"2021-07-13":1435.1,"2021-07-14":1406.0,"2021-07-15":1436.0,"2021-07-16":1436.2,"2021-07-19":1365.5,"2021-07-20":1402.2,"2021-07-21":1396.0,"2021-07-22":1424.1,"2021-07-23":1400.0,"2021-07-26":1403.4,"2021-07-27":1401.2,"2021-07-28":1403.0,"2021-07-29":1427.4,"2021-07-30":1435.1,"2021-08-02":1443.0,"2021-08-03":1463.1,"2021-08-04":1467.2,"2021-08-05":1477.5,"2021-08-06":1470.0,"2021-08-09":1498.2,"2021-08-10":1488.5,"2021-08-11":1482.0,"2021-08-12":1470.0,"2021-08-13":1480.0,"2021-08-16":1494.2,"2021-08-17":1490.1,"2021-08-18":1487.7,"2021-08-19":1485.0,"2021-08-20":1445.0,"2021-08-23":1406.0,"2021-08-24":1414.1,"2021-08-25":1427.8,"2021-08-26":1407.0,"2021-08-27":1412.3,"2021-08-30":1424.1,"2021-08-31":1418.5,"2021-09-01":1425.1,"2021-09-06":1440.9,"2021-09-07":1436.0,"2021-09-08":1421.1,"2021-09-09":1440.8,"2021-09-10":1437.3,"2021-09-13":1436.4,"2021-09-14":1435.9,"2021-09-15":1437.2,"2021-09-16":1436.1,"2021-09-17":1450.8,"2021-09-20":1450.1,"2021-09-21":1434.0,"2021-09-22":1439.1,"2021-09-23":1444.1,"2021-09-24":1445.1,"2021-09-27":1429.2,"2021-09-28":1438.8,"2021-09-29":1442.8,"2021-09-30":1446.2,"2021-10-01":1432.1,"2021-10-04":1435.0,"2021-10-05":1443.5,"2021-10-06":1448.3,"2021-10-07":1448.1,"2021-10-08":1463.8,"2021-10-11":1504.2,"2021-10-12":1493.7,"2021-10-13":1495.5,"2021-10-14":1494.2,"2021-10-15":1497.0,"2021-10-18":1505.0,"2021-10-19":1503.6,"2021-10-20":1496.0,"2021-10-21":1490.4,"2021-10-22":1486.0,"2021-10-25":1475.6,"2021-10-26":1486.0,"2021-10-27":1519.2,"2021-10-28":1529.0,"2021-10-29":1532.9,"2021-11-01":1520.2,"2021-11-02":1522.5,"2021-11-03":1525.2,"2021-11-04":1526.8,"2021-11-05":1533.3,"2021-11-08":1532.7,"2021-11-09":1523.1,"2021-11-10":1525.8,"2021-11-11":1511.2,"2021-11-12":1523.0,"2021-11-15":1526.0,"2021-11-16":1518.0,"2021-11-17":1520.6,"2021-11-18":1509.0,"2021-11-19":1502.5,"2021-11-22":1512.5,"2021-11-23":1528.9,"2021-11-24":1562.0,"2021-11-25":1566.5,"2021-11-26":1556.5,"2021-11-29":1551.5,"2021-11-30":1537.1,"2021-12-01":1553.9,"2021-12-02":1541.1,"2021-12-03":1515.4,"2021-12-06":1479.1,"2021-12-07":1511.7,"2021-12-08":1511.0,"2021-12-09":1532.0,"2021-12-10":1520.5,"2021-12-13":1525.5,"2021-12-14":1518.2,"2021-12-15":1520.0,"2021-12-16":1510.0};
+
+/* Build tick array from real VN30F price snapshots + synthetic quantities */
+function buildVN30Ticks(raw, seed) {
+  const rng = lcg(seed);
+  return raw.map((r, i) => {
+    const { ts, b1, b2, b3, a1, a2, a3 } = r;
+    // Synthetic quantities realistic for VN30F (1-50 lots per level)
+    const bq1 = 1 + Math.floor(rng() * 50);
+    const bq2 = 1 + Math.floor(rng() * 30);
+    const bq3 = 1 + Math.floor(rng() * 20);
+    const aq1 = 1 + Math.floor(rng() * 50);
+    const aq2 = 1 + Math.floor(rng() * 30);
+    const aq3 = 1 + Math.floor(rng() * 20);
+    const WB = bq1 + bq2 + bq3, WA = aq1 + aq2 + aq3;
+    const obi   = (WB - WA) / (WB + WA);
+    const depth = WA / WB;
+    // Rise ratio: (ask1[t] - ask1[t-10]) / ask1[t-10] * 100
+    const rr = i >= 10 ? (a1 - raw[i-10].a1) / raw[i-10].a1 * 100 : 0;
+    // Label: 1 if ask1 rises in next 10 snapshots, 0 otherwise
+    const label = i < raw.length - 10
+      ? (raw[i + 10].a1 > a1 ? 1 : 0)
+      : (rng() < 0.5 ? 1 : 0);
+    return {
+      ts: ts.slice(11),          // "HH:MM:SS" for chart labels
+      tsDate: ts.slice(0, 10),   // "YYYY-MM-DD"
+      bid1: b1, bid2: b2, bid3: b3,
+      ask1: a1, ask2: a2, ask3: a3,
+      bq1, bq2, bq3, aq1, aq2, aq3,
+      obi: +obi.toFixed(4), depth: +depth.toFixed(4),
+      rr:  +rr.toFixed(4),  label,
+      mid: +((b1 + a1) / 2).toFixed(2),
+      spread: +(a1 - b1).toFixed(2),
+    };
+  });
+}
+
+const TICKS = buildVN30Ticks(VN30F_RAW, 42);
+const TICKS_SAMPLE = TICKS.slice(0, 200);
+
+/* ── HFT PnL simulation — exact mirror of model_fitting.ipynb lines 1-49
+   Four cases per rolling window j:
+     submission == true_value == 1  →  +spread[j]  (+bps)   correct BUY
+     submission == true_value == 0  →  0            (no trade, correct)
+     submission == 1, true_value == 0  →  loss[j] = -spread[j] wrong BUY
+     submission == 0, true_value == 1  →  0          (missed, no cost)
+   spread[j] ≈ ask1 - bid1 in bps  (VN30F2112 avg ~10 bps = 1.48 pts / 1450 mid)
+   cum_profit  = cumulative sum of per-window P&L
+   equity_curve = (1 + pnl/10000).cumprod()  starting at 1.0
+──────────────────────────────────────────────────────────── */
+function genHFTPnL(seed, n = 300, winRate = 0.56, spreadBps = 10) {
+  const rng = lcg(seed);
+  const perTrade = [];    // per-window P&L in bps (cum_profit entries)
+  const equity   = [1.0]; // equity curve
+  let tradeCount = 0, wins = 0;
+
+  for (let i = 0; i < n; i++) {
+    const spread = spreadBps * (0.8 + rng() * 0.4); // slight randomness
+    // alpha_signal returns 1 (BUY) or 0 (no trade) — ~60% signal rate
+    const submission = rng() < 0.60 ? 1 : 0;
+    // true_value: actual label (did price rise in next 10s?)
+    const trueValue  = rng() < 0.52 ? 1 : 0;
+
+    let pnl = 0;
+    if (submission === trueValue) {
+      if (submission === 1) {
+        pnl = +spread.toFixed(2);   // correct BUY  → +spread (bps)
+        wins++;
+        tradeCount++;
+      }
+      // submission == 0 == trueValue → no trade, pnl = 0
+    } else {
+      if (submission === 1) {
+        pnl = -spread.toFixed(2);   // wrong BUY → loss = −spread (bps)
+        tradeCount++;
+      }
+      // submission == 0, trueValue == 1 → missed, pnl = 0
+    }
+
+    perTrade.push(+pnl.toFixed(2));
+    equity.push(+(equity[equity.length-1] * (1 + pnl / 10000)).toFixed(6));
+  }
+  return { perTrade, equity, tradeCount, wins };
+}
+
+// Rolling-window accuracy simulation (different models)
+function genRollingAcc(seed, n = 60, base = 0.60) {
+  const rng = lcg(seed);
+  return Array.from({length: n}, (_, i) => +(base + (rng()-0.5)*0.12 + Math.sin(i/8)*0.02).toFixed(4));
+}
+
+const ROLL_WINDOWS = Array.from({length: 60}, (_,i) => `T${i+1}`);
+const ROLL_ACC = {
+  'RandomForest':     genRollingAcc(11, 60, 0.635),
+  'ExtraTrees':       genRollingAcc(22, 60, 0.628),
+  'GradBoost':        genRollingAcc(33, 60, 0.619),
+  'AdaBoost':         genRollingAcc(44, 60, 0.601),
+  'SVC':              genRollingAcc(55, 60, 0.584),
+};
+
+// HFT Strategies (different OBI weight schemes + lookback combos)
+/* Generate PnL summary stats for a strategy using genHFTPnL */
+function stratPnLSummary(seed, n=200, winRate=0.56, spreadBps=10) {
+  const pnl = genHFTPnL(seed, n, winRate, spreadBps);
+  const pt = pnl.perTrade;
+  let running = 0;
+  const cum = pt.map(v => (running += v, +running.toFixed(2)));
+  const total = cum[cum.length - 1];
+  // Max drawdown on cum_profit
+  let peak = -Infinity, maxDD = 0;
+  for (const v of cum) {
+    if (v > peak) peak = v;
+    const dd = peak - v;
+    if (dd > maxDD) maxDD = dd;
+  }
+  // Sharpe
+  const traded = pt.filter(v => v !== 0);
+  const avg = traded.length > 0 ? traded.reduce((s, v) => s + v, 0) / traded.length : 0;
+  const std = Math.sqrt(traded.reduce((s, v) => s + (v - avg) ** 2, 0) / (traded.length || 1));
+  const sharpe = std > 0 ? +(avg / std * Math.sqrt(2340)).toFixed(2) : 0;
+  // Downsample cum curve to 30 points for sparkline
+  const step = Math.max(1, Math.floor(cum.length / 30));
+  const rollPnL = cum.filter((_, i) => i % step === 0);
+  return {
+    totalPnL: +total.toFixed(1),
+    sharpe,
+    winRate: pnl.tradeCount > 0 ? +(pnl.wins / pnl.tradeCount).toFixed(3) : 0,
+    maxDD: +maxDD.toFixed(1),
+    trades: pnl.tradeCount,
+    rollPnL,
+  };
+}
+
+const STRATEGIES = [
+  { id:'STRAT-001', author:'J. Smith',  model:'RandomForest',  weights:'(1,1,1)', lb:'30s',  status:'Active',   ...stratPnLSummary(1001,200,0.580,10) },
+  { id:'STRAT-002', author:'M. Chen',   model:'ExtraTrees',    weights:'(9,1,0)', lb:'60s',  status:'Active',   ...stratPnLSummary(1002,200,0.570,10) },
+  { id:'STRAT-003', author:'A. Patel',  model:'GradBoost',     weights:'(5,3,2)', lb:'30s',  status:'Active',   ...stratPnLSummary(1003,200,0.565,10) },
+  { id:'STRAT-004', author:'L. Kim',    model:'RandomForest',  weights:'(7,2,1)', lb:'120s', status:'Paused',   ...stratPnLSummary(1004,200,0.555,10) },
+  { id:'STRAT-005', author:'R. Torres', model:'AdaBoost',      weights:'(8,2,0)', lb:'60s',  status:'Active',   ...stratPnLSummary(1005,200,0.548,10) },
+  { id:'STRAT-006', author:'J. Smith',  model:'SVC',           weights:'(1,0,0)', lb:'10s',  status:'Paused',   ...stratPnLSummary(1006,200,0.544,10) },
+  { id:'STRAT-007', author:'M. Chen',   model:'ExtraTrees',    weights:'(0,1,0)', lb:'60s',  status:'Archived', ...stratPnLSummary(1007,200,0.540,10) },
+  { id:'STRAT-008', author:'A. Patel',  model:'GradBoost',     weights:'(6,4,0)', lb:'30s',  status:'Active',   ...stratPnLSummary(1008,200,0.561,10) },
+  { id:'STRAT-009', author:'L. Kim',    model:'RandomForest',  weights:'(5,5,0)', lb:'120s', status:'Active',   ...stratPnLSummary(1009,200,0.553,10) },
+  { id:'STRAT-010', author:'R. Torres', model:'AdaBoost',      weights:'(2,3,5)', lb:'30s',  status:'Archived', ...stratPnLSummary(1010,200,0.537,10) },
+];
+
+const MODELS_PERF = [
+  { model:'RandomForest',  accMean:0.641, accStd:0.032, f1Mean:0.623, bestWin:'T27', color:'#4f8ef7' },
+  { model:'ExtraTrees',    accMean:0.633, accStd:0.034, f1Mean:0.614, bestWin:'T31', color:'#22d3a0' },
+  { model:'GradBoost',     accMean:0.624, accStd:0.038, f1Mean:0.605, bestWin:'T18', color:'#f5a623' },
+  { model:'AdaBoost',      accMean:0.601, accStd:0.041, f1Mean:0.581, bestWin:'T44', color:'#f45c5c' },
+  { model:'SVC (RBF)',     accMean:0.588, accStd:0.045, f1Mean:0.567, bestWin:'T22', color:'#a78bfa' },
+];
+
+/* Strategy signal correlation — pairwise Pearson ρ between alpha
+   submission sequences across rolling windows.
+   Rules: same model → higher ρ (~+0.3–0.6), same OBI weights → +0.25,
+   same author → +0.15, opposing styles → can be mildly negative.    */
+const STRAT_LABELS = STRATEGIES.map(s => s.id);
+
+function buildStratCorr(strats) {
+  const n = strats.length;
+  const rng = lcg(24680);
+  const m = Array.from({length: n}, () => new Array(n).fill(0));
+  for (let i = 0; i < n; i++) {
+    m[i][i] = 1;
+    for (let j = i + 1; j < n; j++) {
+      const si = strats[i], sj = strats[j];
+      let base = 0.05 + rng() * 0.15;          // low noise baseline
+      if (si.model   === sj.model)   base += 0.35;  // same ML model
+      if (si.weights === sj.weights) base += 0.25;  // same OBI weights
+      if (si.author  === sj.author)  base += 0.12;  // same researcher
+      if (si.lb      === sj.lb)      base += 0.08;  // same lookback
+      // Archived vs Active: slight negative
+      if ((si.status === 'Archived') !== (sj.status === 'Archived')) base -= 0.10;
+      const c = +Math.max(-0.35, Math.min(0.98, base + (rng() - 0.5) * 0.08)).toFixed(3);
+      m[i][j] = c; m[j][i] = c;
+    }
+  }
+  return m;
+}
+const STRAT_CORR = buildStratCorr(STRATEGIES);
+
+// Portfolio/deployment weights
+const DEPLOYMENT = [
+  { strat:'STRAT-001', weight:30, signal:'BUY',  contrib:+0.41 },
+  { strat:'STRAT-002', weight:22, signal:'SELL', contrib:+0.29 },
+  { strat:'STRAT-003', weight:18, signal:'BUY',  contrib:+0.24 },
+  { strat:'STRAT-005', weight:15, signal:'HOLD', contrib:+0.11 },
+  { strat:'STRAT-008', weight:10, signal:'BUY',  contrib:+0.19 },
+  { strat:'Other',     weight: 5, signal:'—',    contrib:+0.06 },
+];
+
+// QR Variable library — HFT-specific
+const VARIABLES = {
+  'PRICE LEVELS': [
+    { name:'bid_price_1', desc:'Best bid price (level 1)' },
+    { name:'bid_price_2', desc:'Bid price level 2' },
+    { name:'bid_price_3', desc:'Bid price level 3' },
+    { name:'ask_price_1', desc:'Best ask price (level 1)' },
+    { name:'ask_price_2', desc:'Ask price level 2' },
+    { name:'ask_price_3', desc:'Ask price level 3' },
+    { name:'mid_price',   desc:'(bid1+ask1)/2' },
+  ],
+  'QUANTITIES': [
+    { name:'bid_qty_1', desc:'Bid quantity level 1' },
+    { name:'bid_qty_2', desc:'Bid quantity level 2' },
+    { name:'bid_qty_3', desc:'Bid quantity level 3' },
+    { name:'ask_qty_1', desc:'Ask quantity level 1' },
+    { name:'ask_qty_2', desc:'Ask quantity level 2' },
+    { name:'ask_qty_3', desc:'Ask quantity level 3' },
+  ],
+  'OB FACTORS': [
+    { name:'spread',       desc:'ask1 - bid1 (in ticks)' },
+    { name:'OBI',          desc:'(WQ_b - WQ_a)/(WQ_b + WQ_a)', ds:true },
+    { name:'depth_ratio',  desc:'WQ_ask / WQ_bid', ds:true },
+    { name:'rise_ratio',   desc:'(ask1[t]-ask1[t-n])/ask1[t-n]*100', ds:true },
+    { name:'W_AB',         desc:'Weighted ask/bid ratio', ds:true },
+    { name:'W_A_B',        desc:'Weighted ask-bid diff', ds:true },
+  ],
+  'DERIVED': [
+    { name:'time_second',  desc:'Seconds since 09:00:00' },
+    { name:'traded_label', desc:'0=DOWN, 1=UP (next N sec)' },
+  ],
+};
+
+// QR Code — rule-based alpha that returns 0 or 1 (submission)
+const QR_CODE = `# ═══════════════════════════════════════════════════════════
+# HFT Alpha Expression — VN30F2112 (VN30 Futures Dec 2021)
+# Output: submission = 0 (NO TRADE) | 1 (BUY signal)
+#
+# PnL rule (mirrors model_fitting.ipynb):
+#   submission == true_value == 1  →  profit += spread[j]  (+bps)
+#   submission == 1, true_value == 0 →  profit += loss[j]   (−bps)
+#   submission == 0                  →  profit += 0  (no trade)
+# ═══════════════════════════════════════════════════════════
+import numpy as np
+
+# ── Helper: Weighted OBI ────────────────────────────────────
+def compute_OBI(bq1, bq2, bq3, aq1, aq2, aq3, w1=1, w2=1, w3=1):
+    WQ_b = w1*bq1 + w2*bq2 + w3*bq3
+    WQ_a = w1*aq1 + w2*aq2 + w3*aq3
+    return (WQ_b - WQ_a) / (WQ_b + WQ_a + 1e-8)
+
+# ── Helper: Rise Ratio ──────────────────────────────────────
+def rise_ratio(ask1_series, t, n_sec=10):
+    idx = max(0, t - n_sec)
+    return (ask1_series[t] - ask1_series[idx]) / (ask1_series[idx] + 1e-8) * 100
+
+# ── Alpha Signal (called once per second-level timeframe) ───
+def alpha_signal(t, ask1, bq1, bq2, bq3, aq1, aq2, aq3):
+    """
+    Returns
+    -------
+    submission : int
+        1  → BUY signal  (predict price will rise in next 10 s)
+        0  → NO TRADE    (predict price will NOT rise / hold)
+    """
+    # Factor 1 — OBI with equal weights (1,1,1)
+    obi_111 = compute_OBI(bq1, bq2, bq3, aq1, aq2, aq3, 1, 1, 1)
+
+    # Factor 2 — OBI with top-heavy weights (9,1,0)
+    obi_910 = compute_OBI(bq1, bq2, bq3, aq1, aq2, aq3, 9, 1, 0)
+
+    # Factor 3 — Rise ratio over 10-second window
+    rr_10s = rise_ratio(ask1, t, n_sec=10)
+
+    # ── Signal Rule ──────────────────────────────────────────
+    # BUY when buy-side pressure dominates AND recent upward momentum
+    if obi_111 > 0.10 and rr_10s > 0.0:
+        submission = 1   # ← predict UP → enter long position
+    elif obi_910 > 0.25:
+        submission = 1   # ← strong level-1 imbalance alone
+    else:
+        submission = 0   # ← no edge, do not trade
+
+    return submission    # 0 or 1
+
+# ── Backtest Loop (rolling 10-second windows) ───────────────
+for j, t in enumerate(timeframes):
+    submission  = alpha_signal(t, ask1, bq1, bq2, bq3, aq1, aq2, aq3)
+    true_value  = traded_label[j]   # 1 if ask1[t+10] > ask1[t]
+
+    if submission == true_value:
+        if submission == 1:
+            cum_profit.append(spread[j])   # +bps  ✓ correct BUY
+        else:
+            cum_profit.append(0)           # 0     ✓ correct NO TRADE
+    else:
+        if submission == 1:
+            cum_profit.append(loss[j])     # −bps  ✗ wrong BUY
+        else:
+            cum_profit.append(0)           # 0     ✗ missed BUY (no cost)`;
+
+// DS Code
+const DS_CODE = `# HFT Rolling-Window Classifier
+# Train: last 30 min (1800 seconds)  Pred: next 10 s
+# Features: 64 (30 rise_ratio + 34 OBI/depth)
+# Label:  0 = price DOWN, 1 = price UP in pred_sec
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
+from sklearn.ensemble import GradientBoostingClassifier, AdaBoostClassifier
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+from sklearn import metrics
+import numpy as np
+
+# Rolling window parameters
+latest_sec = 60 * 30  # 30-minute training window
+pred_sec   = 10       # 10-second prediction horizon
+
+# Load pre-processed features
+data = pd.read_csv('./data/VN30F2112.csv')
+# Columns: datetime, tickersymbol, bid_price, bid_depth, ask_price, ask_depth
+# bid_depth / ask_depth = level index (1, 2, 3) — quantities are synthetic
+
+models = {
+    'RandomForest': RandomForestClassifier(
+        n_estimators=10, max_depth=10,
+        criterion='entropy', random_state=0),
+    'ExtraTrees': ExtraTreesClassifier(
+        n_estimators=10, max_depth=10,
+        criterion='entropy', random_state=0),
+    'GradBoost': GradientBoostingClassifier(
+        n_estimators=10, max_depth=10, random_state=0),
+    'AdaBoost': AdaBoostClassifier(
+        base_estimator=DecisionTreeClassifier(), random_state=0),
+}
+
+results = {}
+for i in range(0, 9000 - latest_sec - 600, pred_sec):
+    X_train = data.iloc[i:i+latest_sec, 1:65]
+    y_train = data.iloc[i:i+latest_sec, 0]
+    X_test  = data.iloc[i+latest_sec:i+latest_sec+pred_sec, 1:65]
+    y_test  = data.iloc[i+latest_sec:i+latest_sec+pred_sec, 0]
+
+    for name, model in models.items():
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        acc = metrics.accuracy_score(y_test, y_pred)
+        f1  = metrics.f1_score(y_test, y_pred)
+        results.setdefault(name, []).append({'acc': acc, 'f1': f1})
+
+    print(f"Window {i//pred_sec}: RF_acc={results['RandomForest'][-1]['acc']:.4f}")`;
+
+// HFT Factor publisher
+const FACTORS = [
+  { name:'OBI_111',      type:'OBI',        formula:'(1,1,1) weights', author:'J. Smith', status:'Published'    },
+  { name:'OBI_910',      type:'OBI',        formula:'(9,1,0) weights', author:'M. Chen',  status:'Published'    },
+  { name:'rise_10s',     type:'Rise Ratio', formula:'(ask1_t-ask1_t-10)/ask1_t-10', author:'A. Patel', status:'Published' },
+  { name:'depth_111',    type:'Depth',      formula:'WQ_a/WQ_b (1,1,1)', author:'L. Kim',  status:'Under Review' },
+  { name:'OBI_532',      type:'OBI',        formula:'(5,3,2) weights', author:'R. Torres',status:'Draft'        },
+  { name:'rise_30s',     type:'Rise Ratio', formula:'(ask1_t-ask1_t-30)/ask1_t-30', author:'J. Smith', status:'Published' },
+  { name:'W_AB_721',     type:'Depth',      formula:'WQ_a/WQ_b (7,2,1)', author:'M. Chen', status:'Deprecated'  },
+];
+
+
+/* ═══════════════════════════════════════════════════════════
+   UTILITIES
+═══════════════════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+function toast(msg, type='success') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.textContent = msg;
+  $('toast-wrap').appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+function p2(n) { return n.toFixed(2); }
+function pp(n) { return (n>=0?'+':'')+n.toFixed(3); }
+function pct(n) { return (n*100).toFixed(1)+'%'; }
+
+/* ═══════════════════════════════════════════════════════════
+   CLOCK
+═══════════════════════════════════════════════════════════ */
+function tick() {
+  $('clock').textContent = new Date().toLocaleTimeString('en-US',{hour12:false})+' UTC';
+}
+setInterval(tick, 1000); tick();
+
+/* ═══════════════════════════════════════════════════════════
+   WORKSPACE SWITCHER
+═══════════════════════════════════════════════════════════ */
+document.querySelectorAll('.ws-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    const ws = tab.dataset.ws;
+    document.querySelectorAll('.ws-tab').forEach(t => t.classList.toggle('active', t===tab));
+    document.querySelectorAll('.workspace').forEach(w => {
+      const hit = w.id === 'ws-'+ws;
+      w.style.display = 'none'; w.classList.remove('active');
+      if (hit) { w.style.display='grid'; requestAnimationFrame(() => w.classList.add('active')); }
+    });
+    if (ws==='qr' && qrCM) setTimeout(()=>qrCM.refresh(),10);
+    if (ws==='ds' && dsCM)  setTimeout(()=>dsCM.refresh(),10);
+  });
+});
+
+/* ═══════════════════════════════════════════════════════════
+   QR WORKSPACE
+═══════════════════════════════════════════════════════════ */
+let qrCM;
+function initQREditor() {
+  qrCM = CodeMirror.fromTextArea($('qr-ta'), {
+    mode:'python', theme:'quantlab', lineNumbers:true,
+    matchBrackets:true, autoCloseBrackets:true, indentUnit:4, tabSize:4,
+    extraKeys:{ Tab: cm => cm.replaceSelection('    ') },
+  });
+  qrCM.setValue(QR_CODE);
+  qrCM.setSize('100%','100%');
+}
+function qrFmt()  { toast('Code formatted successfully', 'info'); }
+function qrSave() { toast('Factor expression saved as OBI_custom_v1', 'success'); }
+function qrShare(){ if(qrCM) navigator.clipboard?.writeText(qrCM.getValue()).catch(()=>{}); toast('Share link copied', 'info'); }
+
+// Variable Library
+function renderVarLib(q='') {
+  const root=$('var-list'); root.innerHTML='';
+  const fl=q.toLowerCase();
+  for (const [cat,vars] of Object.entries(VARIABLES)) {
+    const items=vars.filter(v=>!fl||v.name.includes(fl)||v.desc.toLowerCase().includes(fl));
+    if(!items.length) continue;
+    const wrap=document.createElement('div'); wrap.style.marginBottom='10px';
+    wrap.innerHTML=`<div class="var-cat-lbl">${cat}</div>`;
+    items.forEach(v=>{
+      const el=document.createElement('div'); el.className='var-item';
+      el.innerHTML=`<span class="mono">${v.name}</span>${v.ds?'<span class="badge bb" style="font-size:8px">DS</span>':''}`;
+      el.title=v.desc;
+      el.addEventListener('click',()=>{ if(qrCM){qrCM.replaceSelection(v.name);qrCM.focus();} });
+      wrap.appendChild(el);
+    });
+    root.appendChild(wrap);
+  }
+}
+function filterVars(q){ renderVarLib(q); }
+
+// Simulation (run backtest)
+let simTimer;
+function runSim() {
+  const btn=$('run-btn');
+  if(btn.classList.contains('running')) return;
+  btn.classList.add('running'); btn.textContent='⟳ RUNNING…';
+  $('sim-prog').style.display='flex';
+  let pct=0;
+  simTimer=setInterval(()=>{
+    pct+=Math.random()*7+3;
+    if(pct>=100){
+      pct=100; clearInterval(simTimer);
+      $('sim-fill').style.width='100%'; $('sim-eta').textContent='Done!';
+      setTimeout(()=>{
+        btn.classList.remove('running'); btn.innerHTML='&#9654; RUN BACKTEST';
+        $('sim-prog').style.display='none'; $('sim-fill').style.width='0%';
+        $('sb-bt').textContent='Last Backtest: '+new Date().toLocaleTimeString();
+        toast('Backtest complete — Total PnL: +42.3 bps, Win Rate: 56.4%','success');
+        refreshPnLChart();
+      },400);
+    } else {
+      $('sim-fill').style.width=pct+'%';
+      $('sim-eta').textContent='ETA: '+Math.ceil((100-pct)/8)+'s';
+    }
+  },200);
+}
+
+// ── Cumulative HFT PnL Chart ───────────────────────────────
+// Mirrors model_fitting.ipynb: per-trade P&L bars + cumsum line
+let pnlChart;
+const PNL_INIT = genHFTPnL(42, 300, 0.564, 5);
+
+function initPnLChart() {
+  const ctx = $('pnl-chart').getContext('2d');
+  const {perTrade, equity} = PNL_INIT;
+
+  // X-axis labels: rolling window index (each = 10s prediction window)
+  const n = perTrade.length;
+  const labels = Array.from({length: n}, (_,i) => `T${i+1}`);
+
+  // Cumulative PnL in bps
+  const cumPnL = perTrade.reduce((acc, v) => {
+    acc.push((acc.length ? acc[acc.length-1] : 0) + v);
+    return acc;
+  }, []);
+
+  // Bar colours:
+  //   green  → submit=1 & true=1 (correct BUY  → +spread)
+  //   red    → submit=1 & true=0 (wrong BUY    → −spread)
+  //   faint  → submit=0          (no trade      → 0)
+  const barColors = perTrade.map(v =>
+    v > 0 ? 'rgba(34,211,160,0.60)' :
+    v < 0 ? 'rgba(244,92,92,0.60)'  :
+            'rgba(107,114,128,0.15)');
+
+  // Equity curve gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, 200);
+  grad.addColorStop(0, 'rgba(79,142,247,0.25)');
+  grad.addColorStop(1, 'rgba(79,142,247,0)');
+
+  pnlChart = new Chart(ctx, {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'P&L per window (green=+spread, red=−spread, grey=no trade)',
+          data: perTrade,
+          backgroundColor: barColors,
+          borderWidth: 0,
+          yAxisID: 'y',
+          order: 2,
+        },
+        {
+          type: 'line',
+          label: 'Cum P&L (bps)',
+          data: cumPnL,
+          borderColor: '#4f8ef7',
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: true,
+          backgroundColor: grad,
+          tension: 0.3,
+          yAxisID: 'y',
+          order: 1,
+        },
+        {
+          type: 'line',
+          label: 'Equity Curve',
+          data: equity.slice(0, n),
+          borderColor: '#22d3a0',
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+          borderDash: [4, 3],
+          tension: 0.3,
+          yAxisID: 'y2',
+          order: 0,
+        },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: true, labels: { color:'#6b7280', font:{size:9,family:'Roboto Mono'}, boxWidth:12 } },
+        tooltip: {
+          mode: 'index', intersect: false,
+          backgroundColor:'#1a1d28', borderColor:'#252836', borderWidth:1,
+          callbacks: {
+            label: ctx => {
+              const v = ctx.raw;
+              if (ctx.datasetIndex === 2) return ` Equity: ${v?.toFixed(5)}`;
+              if (ctx.datasetIndex === 1) return ` cum_profit: ${v >= 0 ? '+' : ''}${v?.toFixed(1)} bps`;
+              // per-window bar: annotate which of the 4 cases
+              if (v > 0)  return ` submit=1 & true=1 → +${v?.toFixed(2)} bps`;
+              if (v < 0)  return ` submit=1 & true=0 → ${v?.toFixed(2)} bps`;
+              return ` submit=0 → 0 bps (no trade)`;
+            }
+          }
+        },
+      },
+      scales: {
+        x: { grid:{color:'#151820'}, ticks:{color:'#3d4460', maxTicksLimit:12, font:{size:8}} },
+        y: {
+          position: 'left',
+          grid:{color:'#151820'},
+          ticks:{color:'#3d4460', font:{size:8}, callback: v => (v>=0?'+':'')+v+' bps'},
+          title:{display:true, text:'P&L (bps)', color:'#6b7280', font:{size:8}},
+        },
+        y2: {
+          position: 'right',
+          grid:{drawOnChartArea:false},
+          ticks:{color:'#3d4460', font:{size:8}, callback: v => v.toFixed(3)},
+          title:{display:true, text:'Equity', color:'#6b7280', font:{size:8}},
+        },
+      },
+      interaction:{mode:'index', intersect:false},
+    },
+  });
+
+  _updateQRInfoBar(PNL_INIT);
+}
+
+function _updateQRInfoBar(pnlData) {
+  const {perTrade, tradeCount, wins} = pnlData;
+  const total = perTrade.reduce((s,v)=>s+v,0);
+  const wr    = tradeCount > 0 ? wins/tradeCount : 0;
+  const lastT = perTrade.filter(v=>v!==0).pop() ?? 0;
+
+  $('pnl-total-badge').textContent = (total>=0?'+':'')+total.toFixed(1)+' bps';
+  $('wr-badge').textContent = 'Win Rate '+pct(wr);
+  $('last-trade-badge').textContent = (lastT>=0?'↑ BUY ':'↓ SELL ')+(lastT>=0?'+':'')+lastT.toFixed(1)+' bps';
+  $('last-trade-badge').className = 'badge '+(lastT>=0?'bg':'br');
+
+  // OBI from latest tick
+  const last = TICKS_SAMPLE[TICKS_SAMPLE.length-1];
+  $('obi-val').textContent = pp(last.obi);
+  $('obi-val').className   = last.obi>=0?'cg':'cr';
+  $('rr-val').textContent  = (last.rr>=0?'+':'')+last.rr.toFixed(4)+'%';
+}
+
+function refreshPnLChart() {
+  if (!pnlChart) return;
+  const fresh = genHFTPnL(Date.now()&0xfffff, 300, 0.55+Math.random()*0.05, 10);
+  const cumPnL = fresh.perTrade.reduce((acc,v)=>{acc.push((acc.length?acc[acc.length-1]:0)+v);return acc;},[]);
+  const n = fresh.perTrade.length;
+  pnlChart.data.datasets[0].data = fresh.perTrade;
+  pnlChart.data.datasets[0].backgroundColor = fresh.perTrade.map(v=>v>0?'rgba(34,211,160,0.60)':v<0?'rgba(244,92,92,0.60)':'rgba(107,114,128,0.15)');
+  pnlChart.data.datasets[1].data = cumPnL;
+  pnlChart.data.datasets[2].data = fresh.equity.slice(0, n);
+  pnlChart.update();
+  _updateQRInfoBar(fresh);
+}
+
+// ── QR Backtest Metrics — PnL-based ───────────────────────
+function renderQRMetrics() {
+  /* Mirrors model_fitting.ipynb 4-case logic exactly:
+     case 1: submit=1 & true=1  → +spread[j]   (correct BUY)
+     case 2: submit=1 & true=0  → −spread[j]   (wrong BUY)
+     case 3: submit=0 & true=0  → 0             (correct no-trade)
+     case 4: submit=0 & true=1  → 0             (missed BUY, no cost) */
+  const {perTrade, equity, tradeCount, wins} = PNL_INIT;
+  const n = perTrade.length;
+
+  // cum_profit = cumulative sum (same as dict_['cum_profit'] in notebook)
+  let running = 0;
+  const cumPnL = perTrade.map(v => (running += v, +running.toFixed(2)));
+  const totalPnL = cumPnL[cumPnL.length - 1];
+
+  // Max drawdown on cum_profit series
+  let peak = -Infinity, maxDD = 0;
+  for (const v of cumPnL) {
+    if (v > peak) peak = v;
+    const dd = peak - v;
+    if (dd > maxDD) maxDD = dd;
+  }
+
+  // Win rate: correct BUYs / all BUY signals (submit=0 excluded)
+  const winRate = tradeCount > 0 ? wins / tradeCount : 0;
+
+  // Avg PnL over submission=1 windows only
+  const tradePnLs = perTrade.filter(v => v !== 0);
+  const avgTrade  = tradePnLs.length > 0
+    ? tradePnLs.reduce((s, v) => s + v, 0) / tradePnLs.length : 0;
+
+  // Sharpe (annualised, ~2340 10-s windows/day)
+  const std   = Math.sqrt(tradePnLs.reduce((s, v) => s + (v - avgTrade)**2, 0) / (tradePnLs.length || 1));
+  const sharpe = std > 0 ? (avgTrade / std) * Math.sqrt(2340) : 0;
+
+  // Signal rate = submission=1 count / total windows
+  const signalRate = (tradeCount / n * 100).toFixed(1);
+
+  const items = [
+    { l:'Total PnL',      v:(totalPnL>=0?'+':'')+totalPnL.toFixed(1)+' bps', s:'Σ cum_profit (all windows)', cls:'cg' },
+    { l:'Max Drawdown',   v:'-'+maxDD.toFixed(1)+' bps',   s:'Peak-to-trough on cum_profit',     cls:'cr' },
+    { l:'Win Rate',       v:pct(winRate),                   s:wins+' correct / '+tradeCount+' submit=1', cls:winRate>=0.5?'cg':'ca' },
+    { l:'Signal Rate',    v:signalRate+'%',                 s:tradeCount+' submit=1 out of '+n, cls:'cb' },
+    { l:'Avg PnL/Trade',  v:(avgTrade>=0?'+':'')+avgTrade.toFixed(2)+' bps', s:'Mean over submit=1 windows', cls:avgTrade>=0?'cg':'cr' },
+    { l:'Sharpe (Ann.)',  v:sharpe.toFixed(2),              s:'mean/std × √2340 (10-s windows)', cls:sharpe>=1?'cg':sharpe>=0?'ca':'cr' },
+  ];
+  $('qr-metrics-grid').innerHTML = items.map(m => `
+    <div class="mc">
+      <div class="ml">${m.l}</div>
+      <div class="mv ${m.cls}">${m.v}</div>
+      <div class="ms">${m.s}</div>
+    </div>`).join('');
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   DS WORKSPACE
+═══════════════════════════════════════════════════════════ */
+let dsCM;
+function initDSEditor() {
+  dsCM=CodeMirror.fromTextArea($('ds-ta'),{
+    mode:'python', theme:'quantlab', lineNumbers:true,
+    matchBrackets:true, autoCloseBrackets:true, indentUnit:4, tabSize:4,
+  });
+  dsCM.setValue(DS_CODE);
+  dsCM.setSize('100%','100%');
+}
+
+function consoleLog(msg,color='#22d3a0'){
+  const c=$('ds-console');
+  const el=document.createElement('div'); el.style.color=color; el.textContent=msg;
+  c.appendChild(el); c.scrollTop=c.scrollHeight;
+}
+function dsTrain(){
+  consoleLog('');
+  const steps=[
+    ['> Initializing HFT rolling-window pipeline…','#4f8ef7'],
+    ['  Loading VN30F2112.csv (41,496 snapshots, 300 sampled)…','#6b7280'],
+    ['  Computing 64 features (30 rise_ratio + 34 OBI/depth)…','#6b7280'],
+    ['  Rolling windows: 840 iterations (30min train, 10s pred)…','#a8d8ea'],
+    ['  RandomForest   — mean acc: 0.6483, F1: 0.6310','#22d3a0'],
+    ['  ExtraTrees     — mean acc: 0.6381, F1: 0.6194','#22d3a0'],
+    ['  GradBoost      — mean acc: 0.6267, F1: 0.6084','#22d3a0'],
+    ['  AdaBoost       — mean acc: 0.6012, F1: 0.5818','#f5a623'],
+    ['  SVC (RBF)      — mean acc: 0.5884, F1: 0.5672','#f5a623'],
+    ['✓ Training complete.',  '#22d3a0'],
+  ];
+  let i=0;
+  const iv=setInterval(()=>{
+    if(i<steps.length){consoleLog(...steps[i++]);}
+    else{clearInterval(iv);toast('HFT model trained — RF Accuracy: 64.8%','success');}
+  },280);
+}
+function dsEval(){
+  consoleLog('');
+  consoleLog('> Evaluating RandomForest on held-out windows…','#4f8ef7');
+  setTimeout(()=>consoleLog('  AUC: 0.706  Precision: 0.652  Recall: 0.613  F1: 0.631','#22d3a0'),500);
+  setTimeout(()=>consoleLog('  Top-5 features: rise_30s, OBI_111, OBI_910, rise_10s, depth_532','#a8d8ea'),800);
+  setTimeout(()=>consoleLog('✓ Evaluation complete.','#22d3a0'),1100);
+}
+function dsExport(){
+  consoleLog('> Exporting model to registry…','#4f8ef7');
+  setTimeout(()=>{consoleLog('✓ Saved: /registry/models/rf_hft_ob3_v1.pkl','#22d3a0');toast('Model exported','info');},500);
+}
+
+// Dataset stats (order book)
+const DS_STATS_DATA = {
+  'VN30F2112 — Full History (2021-04-19 ~ 2021-12-16)': [
+    ['Total snapshots','41,496'],['Trading days','167'],
+    ['Price range (bid1)','1,242.4 – 1,576.7'],['Avg spread','1.48 pts'],
+    ['Avg mid price','~1,450 pts'],['Sampled for charts','300 snapshots'],
+    ['OBI mean (sim)','0.011'],['OBI std (sim)','0.322'],
+    ['Rise10s mean','0.0021%'],['UP labels','51.8%'],
+  ],
+  'VN30F2112 — Nov 2021 (high density)': [
+    ['Total snapshots','~8,200'],['Trading days','22'],
+    ['Price range (bid1)','1,502.5 – 1,576.7'],['Avg spread','0.29 pts'],
+    ['Avg mid price','~1,535 pts'],['Avg bid1 qty (sim)','18.3'],
+    ['Avg ask1 qty (sim)','17.9'],['OBI mean (sim)','0.009'],
+    ['OBI std (sim)','0.298'],['UP labels','50.4%'],
+  ],
+  'VN30F2112 — Apr–Jul 2021 (wide spread)': [
+    ['Total snapshots','~12,600'],['Trading days','54'],
+    ['Price range (bid1)','1,242.4 – 1,552.3'],['Avg spread','4.82 pts'],
+    ['Avg mid price','~1,420 pts'],['Avg bid1 qty (sim)','17.1'],
+    ['Avg ask1 qty (sim)','16.8'],['OBI mean (sim)','0.015'],
+    ['OBI std (sim)','0.341'],['UP labels','52.1%'],
+  ],
+};
+function dsDataChange(){
+  const key=$('ds-dataset').value;
+  const rows=DS_STATS_DATA[key]||DS_STATS_DATA['VN30F2112 — Full History (2021-04-19 ~ 2021-12-16)'];
+  $('ds-stats').innerHTML=rows.map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('');
+}
+
+// ── DS Bid/Ask Price Chart ─────────────────────────────────
+let dsOBChart, dsQtyChart;
+function initDSOBChart(){
+  const ctx=$('ds-ob-chart').getContext('2d');
+  const s=TICKS_SAMPLE;
+  const labels=s.map(t=>t.ts);
+
+  // Color gradient for ask (red), bid (green)
+  const gAsk=ctx.createLinearGradient(0,0,0,110);
+  gAsk.addColorStop(0,'rgba(244,92,92,0.15)');
+  gAsk.addColorStop(1,'rgba(244,92,92,0)');
+  const gBid=ctx.createLinearGradient(0,0,0,110);
+  gBid.addColorStop(0,'rgba(34,211,160,0.15)');
+  gBid.addColorStop(1,'rgba(34,211,160,0)');
+
+  dsOBChart=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        { label:'Ask1',      data:s.map(t=>t.ask1), borderColor:'#f45c5c', borderWidth:1.5, pointRadius:0, fill:true, backgroundColor:gAsk, tension:0.2 },
+        { label:'Bid1',      data:s.map(t=>t.bid1), borderColor:'#22d3a0', borderWidth:1.5, pointRadius:0, fill:true, backgroundColor:gBid, tension:0.2 },
+        { label:'Ask2',      data:s.map(t=>t.ask2), borderColor:'rgba(244,92,92,0.35)', borderWidth:1, pointRadius:0, fill:false, borderDash:[2,3], tension:0.2 },
+        { label:'Bid2',      data:s.map(t=>t.bid2), borderColor:'rgba(34,211,160,0.35)', borderWidth:1, pointRadius:0, fill:false, borderDash:[2,3], tension:0.2 },
+      ],
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:true, labels:{ color:'#6b7280', font:{size:8,family:'Roboto Mono'}, boxWidth:10 } },
+        tooltip:{ mode:'index', intersect:false, backgroundColor:'#1a1d28', borderColor:'#252836', borderWidth:1 },
+      },
+      scales:{
+        x:{ grid:{color:'#151820'}, ticks:{color:'#3d4460', maxTicksLimit:8, font:{size:8}} },
+        y:{ grid:{color:'#151820'}, ticks:{color:'#3d4460', font:{size:8}, callback:v=>v.toFixed(1)} },
+      },
+      interaction:{mode:'index',intersect:false},
+    },
+  });
+}
+
+function initDSQtyChart(){
+  const ctx=$('ds-qty-chart').getContext('2d');
+  const s=TICKS_SAMPLE;
+  dsQtyChart=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:s.map(t=>t.ts),
+      datasets:[
+        { label:'BidQty1', data:s.map(t=>t.bq1),  backgroundColor:'rgba(34,211,160,0.6)',  borderWidth:0 },
+        { label:'AskQty1', data:s.map(t=>-t.aq1),  backgroundColor:'rgba(244,92,92,0.6)',   borderWidth:0 },
+      ],
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ display:true, labels:{ color:'#6b7280', font:{size:8,family:'Roboto Mono'}, boxWidth:10 } }, tooltip:{backgroundColor:'#1a1d28',borderColor:'#252836',borderWidth:1} },
+      scales:{
+        x:{ display:false },
+        y:{ grid:{color:'#151820'}, ticks:{color:'#3d4460',font:{size:8},callback:v=>Math.abs(v)} },
+      },
+    },
+  });
+}
+
+// ── Rolling Window Accuracy Chart ──────────────────────────
+function initRollAccChart(){
+  const ctx=$('roll-acc-chart').getContext('2d');
+  new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:ROLL_WINDOWS,
+      datasets: Object.entries(ROLL_ACC).map(([name,data],i)=>({
+        label:name, data,
+        borderColor:['#4f8ef7','#22d3a0','#f5a623','#f45c5c','#a78bfa'][i],
+        borderWidth:1.5, pointRadius:0, fill:false, tension:0.3,
+      })),
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:true, labels:{ color:'#6b7280', font:{size:8,family:'Roboto Mono'}, boxWidth:10 } },
+        tooltip:{backgroundColor:'#1a1d28',borderColor:'#252836',borderWidth:1},
+      },
+      scales:{
+        x:{ grid:{color:'#151820'}, ticks:{color:'#3d4460',maxTicksLimit:10,font:{size:8}},
+            title:{display:true,text:'Rolling Window',color:'#6b7280',font:{size:8}} },
+        y:{ grid:{color:'#151820'}, ticks:{color:'#3d4460',font:{size:8},callback:v=>pct(v)},
+            min:0.5, max:0.75,
+            title:{display:true,text:'Accuracy',color:'#6b7280',font:{size:8}} },
+      },
+    },
+  });
+}
+
+// Confusion matrix
+function renderConfusion(){
+  const cells=[
+    {l:'TP',v:3214,bg:'rgba(34,211,160,0.20)'},{l:'FP',v:1892,bg:'rgba(244,92,92,0.15)'},
+    {l:'FN',v:2108,bg:'rgba(244,92,92,0.15)'},{l:'TN',v:2786,bg:'rgba(34,211,160,0.20)'},
+  ];
+  $('ds-conf').innerHTML=cells.map(c=>`
+    <div class="conf-cell" style="background:${c.bg}">
+      <div class="cf-lbl">${c.l}</div>
+      <div class="cf-val">${c.v.toLocaleString()}</div>
+    </div>`).join('');
+}
+function renderScalars(){
+  $('ds-scalars').innerHTML=[
+    ['Accuracy','64.8%','bb'],['Precision','65.2%','bg'],
+    ['Recall','61.3%','bg'],['F1','63.1%','bg'],['AUC','0.706','ba'],
+  ].map(([l,v,c])=>`<span class="badge ${c}">${l}: ${v}</span>`).join('');
+}
+
+// Factor Publisher
+function renderFactors(){
+  const sb={Published:'bg','Under Review':'ba',Draft:'bm',Deprecated:'br'};
+  $('ds-pub-tbody').innerHTML=FACTORS.map(f=>`
+    <tr>
+      <td class="mono cb">${f.name}</td>
+      <td>${f.type}</td>
+      <td class="cm" style="font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis;">${f.formula}</td>
+      <td>${f.author}</td>
+      <td><span class="badge ${sb[f.status]}">${f.status}</span></td>
+      <td><button class="btn btn-g" style="font-size:9px;padding:2px 7px;"
+                  onclick="publishFactor('${f.name}')">&#8593; To QR</button></td>
+    </tr>`).join('');
+}
+function publishFactor(name){ toast(`"${name}" published to QR variable library`,'success'); }
+
+
+/* ═══════════════════════════════════════════════════════════
+   PM WORKSPACE
+═══════════════════════════════════════════════════════════ */
+
+// ── Strategy Leaderboard ───────────────────────────────────
+let stratSort={key:'totalPnL',asc:false};
+let stratView=[...STRATEGIES];
+
+function sortStrats(key){
+  stratSort.asc=(stratSort.key===key)?!stratSort.asc:false;
+  stratSort.key=key;
+  stratView.sort((a,b)=>{
+    const av=a[key],bv=b[key];
+    if(typeof av==='string') return stratSort.asc?av.localeCompare(bv):bv.localeCompare(av);
+    return stratSort.asc?av-bv:bv-av;
+  });
+  renderStratTable(stratView);
+}
+function filterStrats(q){
+  const lq=q.toLowerCase();
+  stratView=STRATEGIES.filter(s=>s.id.toLowerCase().includes(lq)||s.author.toLowerCase().includes(lq)||s.model.toLowerCase().includes(lq));
+  renderStratTable(stratView);
+}
+function renderStratTable(data){
+  const sb={Active:'bg',Paused:'ba',Archived:'bm'};
+  $('pm-strat-tbody').innerHTML=data.map(s=>`
+    <tr onclick="this.classList.toggle('sel')">
+      <td class="mono cb">${s.id}</td>
+      <td>${s.author}</td>
+      <td><span class="mono" style="font-size:9px;">${s.model}</span><br>
+          <span style="font-size:8px;color:var(--text-muted);">${s.weights} / lb=${s.lb}</span></td>
+      <td class="${s.totalPnL>=0?'cg':'cr'}" style="font-weight:600;">
+        ${s.totalPnL>=0?'+':''}${s.totalPnL} bps</td>
+      <td class="${s.sharpe>=1?'cg':s.sharpe>=0?'ca':'cr'}">${s.sharpe.toFixed(2)}</td>
+      <td class="${s.winRate>=0.55?'cg':s.winRate>=0.50?'ca':'cr'}">${pct(s.winRate)}</td>
+      <td class="cr">-${s.maxDD} bps</td>
+      <td>${pnlSparkSVG(s.rollPnL)}</td>
+      <td><span class="badge ${sb[s.status]}">${s.status}</span></td>
+    </tr>`).join('');
+}
+
+/* Cumulative PnL sparkline — green if net positive, red otherwise */
+function pnlSparkSVG(data) {
+  const W=70, H=22;
+  const mn = Math.min(...data), mx = Math.max(...data);
+  const rng = mx - mn || 1;
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * W;
+    const y = H - ((v - mn) / rng) * H;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const last = data[data.length - 1];
+  const col = last >= 0 ? 'var(--accent-green)' : 'var(--accent-red)';
+  // Zero-line y position
+  const zy = H - ((0 - mn) / rng) * H;
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block">
+    <line x1="0" y1="${zy.toFixed(1)}" x2="${W}" y2="${zy.toFixed(1)}"
+          stroke="rgba(107,114,128,0.3)" stroke-width="0.5" stroke-dasharray="2,2"/>
+    <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.5"/>
+    <circle cx="${W}" cy="${(H-((last-mn)/rng)*H).toFixed(1)}" r="2"
+            fill="${col}"/>
+  </svg>`;
+}
+
+// ── Strategy Alpha Signal Correlation Heatmap ──────────────
+function renderHeatmap(){
+  const n = STRAT_CORR.length;
+  const tip = $('hm-tooltip');
+  const grid = $('hm-grid');
+  const cs = Math.floor((grid.offsetWidth || 220) / (n + 1));
+  grid.style.cssText = `display:grid;grid-template-columns:${cs}px repeat(${n},${cs}px);gap:2px;font-size:7px;color:var(--text-muted);`;
+  grid.innerHTML = '';
+  grid.appendChild(document.createElement('div'));
+  STRAT_LABELS.forEach(l => {
+    const el = document.createElement('div');
+    el.style.cssText = 'text-align:center;overflow:hidden;white-space:nowrap;font-size:6px;';
+    el.textContent = l.replace('STRAT-','S'); grid.appendChild(el);
+  });
+  for (let i = 0; i < n; i++) {
+    const rl = document.createElement('div');
+    rl.style.cssText = 'display:flex;align-items:center;justify-content:flex-end;padding-right:2px;font-size:6px;white-space:nowrap;';
+    rl.textContent = STRAT_LABELS[i].replace('STRAT-','S'); grid.appendChild(rl);
+    for (let j = 0; j < n; j++) {
+      const v = STRAT_CORR[i][j];
+      const cell = document.createElement('div');
+      // green = correlated, red = anti-correlated, grey = near-zero
+      const r = v > 0 ? 34  : 244, g = v > 0 ? 211 : 92, b = v > 0 ? 160 : 92;
+      const a = Math.abs(v) * 0.75 + 0.06;
+      cell.style.cssText = `background:rgba(${r},${g},${b},${a});border-radius:2px;aspect-ratio:1;cursor:pointer;transition:transform .1s;`;
+      // Show ρ value as text for diagonal and high-corr cells
+      if (i === j) {
+        cell.style.cssText += 'display:flex;align-items:center;justify-content:center;';
+        cell.innerHTML = `<span style="font-size:6px;color:#fff;font-weight:600;">1.0</span>`;
+      }
+      const si = STRATEGIES[i], sj = STRATEGIES[j];
+      cell.addEventListener('mouseenter', () => {
+        cell.style.transform = 'scale(1.15)';
+        tip.style.display = 'block';
+        tip.innerHTML = `
+          <b style="color:var(--accent-blue)">${STRAT_LABELS[i]}</b>
+          &times; <b style="color:var(--accent-blue)">${STRAT_LABELS[j]}</b><br>
+          <span style="color:${v>=0?'var(--accent-green)':'var(--accent-red)'}">&#961; = ${v.toFixed(3)}</span><br>
+          <span style="color:var(--text-muted);font-size:9px;">
+            ${si.model} ${si.weights} / ${sj.model} ${sj.weights}
+          </span>`;
+      });
+      cell.addEventListener('mousemove', e => { tip.style.left=(e.clientX+14)+'px'; tip.style.top=(e.clientY-32)+'px'; });
+      cell.addEventListener('mouseleave', () => { cell.style.transform=''; tip.style.display='none'; });
+      grid.appendChild(cell);
+    }
+  }
+}
+
+// ── Model Comparison Table ─────────────────────────────────
+function renderModelComp(){
+  $('pm-model-tbody').innerHTML=MODELS_PERF.sort((a,b)=>b.accMean-a.accMean).map((m,i)=>{
+    const bw=Math.round((m.accMean/0.7)*70);
+    return `<tr>
+      <td class="cm">#${i+1}</td>
+      <td><div class="row g6">
+        <div style="width:8px;height:8px;border-radius:50%;background:${m.color};flex-shrink:0;"></div>
+        ${m.model}
+      </div></td>
+      <td class="cg">${pct(m.accMean)}</td>
+      <td class="cm">±${pct(m.accStd)}</td>
+      <td class="cb">${pct(m.f1Mean)}</td>
+      <td class="cm">${m.bestWin}</td>
+      <td><div class="row g4" style="align-items:center;">
+        <div style="width:${bw}px;height:5px;background:${m.color};border-radius:2px;opacity:.7;"></div>
+        <span class="cm" style="font-size:9px;">${pct(m.accMean)}</span>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Order Book Depth Chart ─────────────────────────────────
+function initDepthChart(){
+  const ctx=$('depth-chart').getContext('2d');
+  const last=TICKS[TICKS.length-1];
+  const bidPrices=[last.bid1, last.bid2, last.bid3].map(v=>v.toFixed(1));
+  const askPrices=[last.ask1, last.ask2, last.ask3].map(v=>v.toFixed(1));
+  const bidQtys =[last.bq1, last.bq2, last.bq3];
+  const askQtys =[last.aq1, last.aq2, last.aq3];
+  new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:[...askPrices.slice().reverse(), ...bidPrices],
+      datasets:[
+        { label:'Ask Depth', data:[...askQtys.slice().reverse(), 0, 0, 0], backgroundColor:'rgba(244,92,92,0.55)', borderColor:'#f45c5c', borderWidth:1 },
+        { label:'Bid Depth', data:[0, 0, 0, ...bidQtys], backgroundColor:'rgba(34,211,160,0.55)', borderColor:'#22d3a0', borderWidth:1 },
+      ],
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:true, labels:{ color:'#6b7280', font:{size:9,family:'Roboto Mono'}, boxWidth:10 } },
+        tooltip:{backgroundColor:'#1a1d28',borderColor:'#252836',borderWidth:1},
+        title:{display:true,text:`Order Book Depth — ${new Date().toLocaleTimeString()}`,color:'#6b7280',font:{size:9,family:'Roboto Mono'}},
+      },
+      scales:{
+        x:{ grid:{color:'#151820'}, ticks:{color:'#3d4460',font:{size:8}},
+            title:{display:true,text:'Price',color:'#6b7280',font:{size:8}} },
+        y:{ grid:{color:'#151820'}, ticks:{color:'#3d4460',font:{size:8}},
+            title:{display:true,text:'Quantity',color:'#6b7280',font:{size:8}} },
+      },
+    },
+  });
+}
+
+// ── Strategy Allocation Table ──────────────────────────────
+function renderAllocTable(){
+  const sigBadge={BUY:'bg',SELL:'br',HOLD:'bm','—':'bm'};
+  $('pm-alloc-tbody').innerHTML=DEPLOYMENT.map(d=>`
+    <tr>
+      <td class="mono cb">${d.strat}</td>
+      <td>${d.weight}%</td>
+      <td><span class="badge ${sigBadge[d.signal]}">${d.signal}</span></td>
+      <td class="cg">+${d.contrib.toFixed(2)}%</td>
+    </tr>`).join('');
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════════ */
+window.addEventListener('load', () => {
+  // QR
+  initQREditor();
+  renderVarLib();
+  initPnLChart();
+  renderQRMetrics();
+
+  // DS (tiny delay for layout)
+  setTimeout(()=>{
+    initDSEditor();
+    dsDataChange();
+    initDSOBChart();
+    initDSQtyChart();
+    initRollAccChart();
+    renderConfusion();
+    renderScalars();
+    renderFactors();
+  }, 80);
+
+  // PM
+  renderStratTable(stratView);
+  renderHeatmap();
+  renderModelComp();
+  initDepthChart();
+  renderAllocTable();
+});
+</script>
+</body>
+</html>
