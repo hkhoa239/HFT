@@ -1,231 +1,213 @@
-# Quantitative Alpha Research & Development Lab — Dashboard Platform
+# QuantAlpha Lab — HFT Research Platform
 
-A single-page, multi-workspace SaaS dashboard modeled on WorldQuant Brain, built in pure HTML/CSS/JS with no external dependencies except CDN-hosted libraries.
+> **Course:** [055134] Hệ Thống Thông Minh (Intelligent Systems)  
+> **Assignment:** 1 — High-Frequency Trading with Machine Learning  
+> **Version:** v2.4.1
 
 ---
 
 ## Overview
 
-A **strictly dark-mode**, data-dense, IDE-flavored dashboard partitioned into three role-specific workspaces:
+**QuantAlpha Lab** is an interactive, browser-based research platform that simulates the full pipeline of a High-Frequency Trading (HFT) system. It is built as a single self-contained `index.html` file — no installation or server required.
 
-| Workspace | Audience | Core Value |
-|---|---|---|
-| **Quant Researcher (QR)** | Researchers | Write & backtest alpha expressions |
-| **Data Scientist (DS)** | Data Scientists | Train ML models, publish indicators |
-| **Portfolio Manager (PM)** | PMs | Monitor, rank, and allocate across alphas |
+The platform is organised around **three professional roles** that collaborate in a sequential workflow:
 
----
-
-## Tech Stack
-
-| Concern | Choice | Rationale |
-|---|---|---|
-| Structure | **HTML5** (single file `index.html`) | Zero build step, deployable |
-| Styling | **Vanilla CSS** (embedded `<style>`) | Full control, theme tokens |
-| Logic | **Vanilla JS** (embedded `<script>`) | No bundler needed |
-| Code Editor | **CodeMirror 5** (CDN) | Lightweight, syntax highlighting out-of-the-box |
-| Charts | **Chart.js 4** (CDN) | Line, bar, scatter, heatmap |
-| Fonts | **Roboto Mono + Space Mono** (Google Fonts) | Monospace alignment |
-| Sparklines | **Custom SVG sparklines** (vanilla JS) | Zero overhead |
-
-> [!NOTE]
-> All data is **mocked/synthetic** — realistic-looking historical figures generated in JS to demonstrate a live feel without a backend.
-
----
-
-## Design System
-
-### Color Tokens
 ```
---bg-base:      #0d0f14   /* deepest background */
---bg-surface:   #13161e   /* panels */
---bg-elevated:  #1a1d28   /* cards, editors */
---bg-hover:     #20243a
---border:       #252836
---accent-blue:  #4f8ef7   /* primary CTA */
---accent-green: #22d3a0   /* positive PnL */
---accent-red:   #f45c5c   /* negative / drawdown */
---accent-amber: #f5a623   /* warnings / neutral */
---text-primary: #e8eaf0
---text-muted:   #6b7280
---text-code:    #a8d8ea
+DS  (Data Scientist)
+ │
+ │  analyzes data, trains models, publishes datasets
+ ▼
+QR  (Quant Researcher)
+ │
+ │  uses published data to write & backtest alpha signals
+ ▼
+PM  (Portfolio Manager)
+     monitors all strategies and manages capital allocation
 ```
 
-### Typography
-- **UI labels / headings**: `'Roboto Mono', monospace`
-- **Code editors**: `'Space Mono', monospace`
-- **Numbers**: `'Roboto Mono'` with tabular-nums
+---
 
-### Spacing & Layout
-- CSS Grid for the outer shell (sidebar + main area)
-- CSS Grid 12-column within each workspace for panels
-- Panels have a dark border, subtle inner shadow, rounded corners (4px)
+## How the Project Works
+
+The project simulates how a real HFT research team operates:
+
+1. The **Data Scientist** works with raw order-book data, computes trading signals (factors), trains machine learning classifiers, and publishes validated datasets to a shared registry.
+2. The **Quant Researcher** picks up those published datasets and uses them as inputs to write Python-based alpha expressions. Each expression is backtested against the historical VN30F2112 order-book data, and its performance (PnL, Sharpe, win rate) is recorded as a strategy.
+3. The **Portfolio Manager** has a read-only view of all submitted strategies. The PM monitors their performance, checks how correlated they are with each other, and decides how much capital to allocate to each active strategy.
+
+The underlying dataset is the **VN30F2112** — VN30 Index Futures (December 2021 contract, Ho Chi Minh Stock Exchange), covering the period 2021-04-19 → 2021-12-16. Level-3 order-book snapshots (bid/ask prices at 3 depth levels) are used as the raw input.
 
 ---
 
-## Proposed File Structure
+## Role 1 — DS: Data Scientist
+
+The Data Scientist is responsible for turning raw market data into clean, validated datasets and trained models that the Quant Researcher can use.
+
+### Tab 1 — Analyze Data
+
+This tab is for **exploring the raw order-book data** before doing any modelling.
+
+- **Order Book Explorer** — select a data period and view a summary statistics table for the Level-3 order-book. Key metrics shown include spread, Order Book Imbalance (OBI), depth ratio, rise ratio, and the fraction of ticks where the price moved up (UP label rate).
+- **Bid/Ask Price Chart** — a time-series chart of the best bid and ask prices over a sample session, so the DS can visually inspect the price dynamics.
+- **Bid/Ask Quantity Chart** — a bar chart showing average quantities at order-book depth levels 1, 2, and 3, giving a sense of market liquidity.
+- **Analysis Script Editor** — a Python code editor where the DS writes factor computation scripts. Running the script outputs statistics to a console. Once the DS is satisfied with the results, clicking **Publish to QR** makes those factor variables available to the Quant Researcher's variable library.
+
+### Tab 2 — Train Model
+
+This tab is for **training machine learning classifiers** on the processed order-book features.
+
+- **ML Trainer Editor** — a Python code editor showing the rolling-window training pipeline. The training protocol is: use the past 30 minutes of data to train, then predict the next 10 seconds.
+- **Rolling Accuracy Chart** — shows how the classifier's accuracy evolves across successive rolling windows, helping the DS assess model stability over time.
+- **Confusion Matrix** — breaks down the classifier's predictions into true positives, false positives, true negatives, and false negatives, for a clearer picture of prediction quality beyond accuracy alone.
+- **Predicted vs. Actual Chart** — plots the model's predicted probability against the true label across multiple windows, revealing calibration and consistency.
+- **Console** — displays training progress and per-window metrics (accuracy, F1 score).
+
+### Tab 3 — Published Data
+
+This tab is the **data registry** — a shared store of datasets and factors that the DS team has generated.
+
+- **Data Generator Editor** — a Python code editor where the DS writes scripts to produce new datasets (e.g. a new OBI variant or a new lookback window). Running the script registers the output in the registry.
+- **Data Registry Table** — lists all generated datasets with their name, type (OBI / Rise Ratio / Depth), number of rows, author, creation date, and publication status (`Published`, `Under Review`, `Draft`, or `Deprecated`). Clicking a row opens a detail modal showing summary statistics and a preview of the first 10 rows.
+
+> Only datasets with `Status = Published` are visible to the Quant Researcher.
+
+---
+
+## Role 2 — QR: Quant Researcher
+
+The Quant Researcher designs **alpha signals** — rule-based expressions that decide, for each moment in time, whether to place a BUY order or do nothing — and evaluates their profitability via backtesting.
+
+### Panel — HFT Factor Expression Editor
+
+A Python code editor (with syntax highlighting) where the QR writes the alpha signal function. The function reads order-book variables and returns either `1` (BUY) or `0` (NO TRADE).
+
+The **OB Variable Library** panel alongside the editor lists all available variables, grouped by category (price levels, quantities, derived OB factors). Variables published by the DS are marked with a `DS` badge. Clicking a variable name inserts it directly into the code at the cursor position.
+
+### Panel — Simulation Control
+
+Before running a backtest, the QR configures:
+- **Instrument** — the futures contract to simulate on
+- **Lookback window** — how far back the signal looks (e.g. 10 s, 60 s, 1800 s)
+- **Prediction window** — the horizon being predicted (e.g. 10 s)
+- **OBI Weights** — how much emphasis to place on each depth level of the order book
+
+Clicking **▶ RUN BACKTEST** runs the alpha expression across all historical ticks and computes the PnL.
+
+### Panel — Cumulative PnL Chart
+
+Shows the running profit-and-loss in **basis points (bps)** as the backtest progresses through time. The chart makes it easy to see whether the alpha generates consistent gains or has large losses at certain periods.
+
+### Panel — Backtest Metrics
+
+A grid of summary statistics computed after the backtest:
+
+| Metric | What it measures |
+|---|---|
+| **Total PnL** | Net profit across all windows, in basis points |
+| **Sharpe Ratio** | Risk-adjusted return — higher is better |
+| **Win Rate** | Fraction of BUY signals that were correct |
+| **Max Drawdown** | Largest peak-to-trough loss on the cumulative PnL curve |
+| **Trade Count** | How many windows generated a BUY signal |
+
+### PnL Calculation Rules
+
+For every rolling window, the signal's outcome is scored as follows:
+
+| Signal | True outcome | PnL |
+|---|---|---|
+| BUY (`1`) | Price went UP (`1`) | **`+spread`** bps — correct trade |
+| NO TRADE (`0`) | Price went DOWN (`0`) | **`0`** — correctly avoided a loss |
+| BUY (`1`) | Price went DOWN (`0`) | **`−spread`** bps — wrong trade |
+| NO TRADE (`0`) | Price went UP (`1`) | **`0`** — missed opportunity, but no cost |
+
+Where `spread = ask1 − bid1` in basis points, representing the transaction cost of entering the position.
+
+---
+
+## Role 3 — PM: Portfolio Manager
+
+The Portfolio Manager has **read-only visibility** over everything produced by the QR team. The PM's job is to monitor strategy performance, ensure the portfolio is diversified, and set capital weights.
+
+### Panel — HFT Strategy Leaderboard
+
+A sortable table listing every strategy submitted by QR researchers. Each row shows:
+- Strategy ID and author
+- Which ML model and OBI weight scheme it uses
+- Performance metrics: Total PnL, Sharpe, Win Rate, Max Drawdown
+- A small PnL sparkline showing the shape of the equity curve
+- Status: `Active`, `Paused`, or `Archived`
+
+The PM can search by strategy ID or author, and sort by any column to find the top performers.
+
+### Panel — Alpha Signal Correlation Heatmap
+
+A matrix showing the **Pearson correlation** between each pair of strategies' submission sequences. High correlation (close to 1.0) means two strategies are making very similar trading decisions and do not add diversification value to the portfolio.
+
+### Panel — Model Performance Comparison
+
+A ranked summary table of the DS-trained classifiers, showing their mean accuracy, standard deviation, F1 score, and the rolling window where they performed best. This helps the PM understand which models the best-performing QR strategies are built on.
+
+### Panel — Live Order Book Depth & Deployment Weights
+
+- **Depth Chart** — a real-time bar chart of the current bid/ask quantity at each price level, giving the PM a feel for current market liquidity.
+- **Strategy Deployment Weights** — a table showing how much of the portfolio capital is allocated to each active strategy, the current signal it is generating, and its estimated contribution to today's portfolio PnL.
+
+---
+
+## HFT Factors (OB Signals)
+
+Three core order-book signals are used as features and building blocks for alpha expressions:
+
+### Order Book Imbalance (OBI)
+Measures the balance between buying and selling pressure at the top of the order book.
+```
+OBI = (WQ_bid − WQ_ask) / (WQ_bid + WQ_ask)
+```
+Positive OBI → more buying pressure → price may rise.  
+Different weight schemes put more or less emphasis on the best price level vs. deeper levels.
+
+### Rise Ratio
+Measures short-term upward price momentum.
+```
+rise_ratio(t, n) = (ask1[t] − ask1[t−n]) / ask1[t−n] × 100
+```
+Computed for various lookback windows (e.g. 10 s, 30 s, 60 s).
+
+### Depth Ratio
+Measures the relative liquidity on the ask side vs. the bid side.
+```
+depth_ratio = WQ_ask / WQ_bid
+```
+
+---
+
+## Project Structure
 
 ```
 assignment_1/
-└── index.html          ← entire application (HTML + CSS + JS)
+├── index.html              # Self-contained interactive platform (no build step needed)
+├── README.md               # This file
+└── data/
+    └── VN30F2112.csv       # Raw Level-3 order-book data, VN30 Futures 
 ```
-
-Single self-contained file for zero-friction delivery.
 
 ---
 
-## Workspace Breakdown & Components
+## How to Run
 
-### 1. Global Shell
-- **Top Navigation Bar**: Logo | Workspace Switcher tabs (QR / DS / PM) | User avatar | Clock
-- **Left Sidebar** (collapsible): Workspace-scoped navigation icons
-- **Status Bar** (bottom): Last backtest run time | Data freshness | System health dot
+Open `index.html` directly in a browser — no server, no installation:
+
+```bash
+open index.html
+# or drag-and-drop into Chrome / Edge / Firefox
+```
+
+The platform uses only CDN-hosted libraries ([CodeMirror](https://codemirror.net/) for the code editor, [Chart.js](https://www.chartjs.org/) for charts) and requires no backend.
 
 ---
 
-### 2. Quant Researcher (QR) Workspace
+## References
 
-```
-┌──────────────────────────┬─────────────────────┐
-│  Fast Expression Editor  │  Data Variable Lib  │
-│  (CodeMirror, ~60% wide) │  (searchable list)  │
-├──────────────────────────┴─────────────────────┤
-│  Simulation Control Panel (full width strip)   │
-├──────────────────────────┬─────────────────────┤
-│  Cumulative PnL Chart    │  Metrics Grid       │
-└──────────────────────────┴─────────────────────┘
-```
-
-**Widget 1 – Fast Expression Editor**
-- CodeMirror instance with Python syntax highlighting
-- Pre-loaded example alpha expression
-- Toolbar: Run | Save | Format | Share
-- Line numbers, bracket matching, auto-close brackets
-- Gutter with error indicators
-
-**Widget 2 – Data Variable Library**
-- Search box at top
-- Categorized list: `PRICE`, `VOLUME`, `ORDER BOOK`, `ML OUTPUTS`
-- Clicking a variable inserts it into the editor
-- Badge showing "Published by DS" on model outputs
-
-**Widget 3 – Simulation Control**
-- Inline form: Universe selector (US Equity / US ETF), Date Range picker (1Y / 3Y / 5Y), Cost Model (Low / Mid / High)
-- **"▶ RUN SIMULATION"** button (accent blue, animated pulse while running)
-- Progress bar + ETA during mock execution
-
-**Widget 4 – Performance Analysis**
-- Cumulative PnL Chart (Chart.js line, green/red fill)
-- Metrics grid: Sharpe | Max DD | Turnover | IR | Win Rate | Calmar
-- Drawdown sub-chart overlay
-
----
-
-### 3. Data Scientist (DS) Workspace
-
-```
-┌──────────────────┬───────────────────────────────┐
-│ Dataset Explorer │  Model Trainer IDE             │
-│ (stats + dist.)  │  (CodeMirror Python)           │
-├──────────────────┼───────────────────────────────┤
-│ Model Evaluation │  Feature & Signal Publisher   │
-│ (ROC, Confusion) │  (published model library)    │
-└──────────────────┴───────────────────────────────┘
-```
-
-**Widget 1 – Dataset Explorer**
-- Dataset selector dropdown
-- Descriptive stats table (mean, std, skew, min/max)
-- Distribution histogram (Chart.js bar)
-- Correlation mini-matrix (CSS grid colored cells)
-
-**Widget 2 – Model Trainer IDE**
-- CodeMirror with Python mode
-- Pre-loaded `RandomForestClassifier` training template
-- Buttons: Train | Evaluate | Export
-- Console output panel below editor (dark terminal)
-
-**Widget 3 – Model Evaluation Console**
-- ROC Curve (Chart.js line)
-- Confusion Matrix (4-cell grid with color intensity)
-- Scalar metrics: Accuracy | Precision | Recall | F1 | AUC
-
-**Widget 4 – Feature & Signal Publisher**
-- Table of published indicators: name, type, author, date, target
-- **"↑ Publish to QR"** button per row with toast confirmation
-- Status badges: Draft | Under Review | Published | Deprecated
-
----
-
-### 4. Portfolio Manager (PM) Workspace
-
-```
-┌────────────────────────────┬──────────────────────┐
-│  Alpha Leaderboard         │  Correlation Heatmap │
-│  (searchable, sortable)    │  (N×N color grid)    │
-├────────────────────────────┼──────────────────────┤
-│  Researcher Performance    │  Portfolio Alloc.    │
-│  Grid (ranked table)       │  (donut / bar chart) │
-└────────────────────────────┴──────────────────────┘
-```
-
-**Widget 1 – Alpha Leaderboard**
-- Sortable columns: Alpha ID | Author | Sharpe | Max DD | Turnover | Status
-- Sparkline PnL column (SVG sparklines)
-- Search / filter bar
-- Status chip: Active | Paused | Archived
-
-**Widget 2 – Correlation Heatmap**
-- N×N grid (10×10 mock alphas)
-- HSL color mapping: red (−1) → gray (0) → green (+1)
-- Tooltip on hover with exact correlation value
-
-**Widget 3 – Researcher Performance Grid**
-- Ranked table: Rank | Researcher | # Alphas | Best Sharpe | Avg Sharpe | Total PnL
-- Avatar initials + color badge per researcher
-- Mini bar chart of Sharpe scores
-
-**Widget 4 – Portfolio Allocation**
-- Donut chart (Chart.js) — capital weight per alpha bucket
-- Table underneath: Alpha | Weight | Allocation $ | Contribution
-
----
-
-## Animations & Micro-interactions
-
-- **Workspace switch**: slide-in transition on panels
-- **Run Simulation**: button pulse → progress bar fill → results fade-in
-- **Chart.js**: default animation on data load
-- **Hover on table rows**: subtle `--bg-hover` highlight + left border accent
-- **Panel load**: staggered `opacity 0 → 1` with small `translateY`
-- **Tooltip**: smooth fade on heatmap cells
-
----
-
-## Verification Plan
-
-### Automated
-- Open `index.html` in browser via browser subagent
-- Verify all three workspace tabs render without console errors
-- Verify charts display populated with data
-- Verify CodeMirror editors are interactive
-
-### Manual
-- Switch between QR / DS / PM workspaces
-- Click "Run Simulation" and observe progress + results
-- Search variables in the Data Library
-- Click a row in Alpha Leaderboard and verify row highlight
-- Hover heatmap cells for tooltip
-
----
-
-## Open Questions
-
-> [!IMPORTANT]
-> **Q1**: Should the three workspaces be separate HTML pages (routes) or a single-page tab-switch? *(Default: single-page tab-switch for zero-backend simplicity)*
-
-> [!IMPORTANT]
-> **Q2**: Should the code editors be read-only demos or fully interactive? *(Default: fully interactive — CodeMirror allows editing)*
-
-> [!NOTE]
-> **Q3**: Any specific alpha expression language syntax beyond Python? *(WorldQuant Brain uses a domain-specific expression language but Python is more familiar)*
+1. VN30 Futures dataset: `data/VN30F2112.csv`
+2. ML-HFT reference framework (third-party, not included in this repo): [bradleyboyuyang/ML-HFT](https://github.com/bradleyboyuyang/ML-HFT)
+3. Scikit-learn documentation: https://scikit-learn.org/stable/

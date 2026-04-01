@@ -1,0 +1,13 @@
+# ── Ignored folders ──────────────────────────────────────────
+# Working scratch / draft files
+trash/
+
+# Third-party reference project (not our code)
+# Source: https://github.com/bradleyboyuyang/ML-HFT
+ML-HFT-master/
+
+# ── macOS system files ────────────────────────────────────────
+.DS_Store
+
+# ── Large data files (tracked via Git LFS if needed) ─────────
+# data/VN30F2112.csv

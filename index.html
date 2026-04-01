@@ -203,15 +203,27 @@
     .mxgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;height:100%;}
 
     /* ─── DS WORKSPACE ────────────────────────────────── */
-    #ws-ds {
-      grid-template-columns: 1fr 1fr;
-      grid-template-rows: 1fr 1fr;
-      gap: 8px;
-      grid-template-areas: "ds-ex ds-tr" "ds-ev ds-pb";
-      height: 100%;
-    }
-    #ds-ex{grid-area:ds-ex;} #ds-tr{grid-area:ds-tr;}
-    #ds-ev{grid-area:ds-ev;} #ds-pb{grid-area:ds-pb;}
+    #ws-ds { display:flex; flex-direction:column; gap:8px; height:100%; }
+    .ds-tabbar { display:flex; gap:2px; background:var(--bg-elevated); padding:3px; border-radius:var(--radius); flex-shrink:0; }
+    .ds-tab { padding:4px 16px; border-radius:calc(var(--radius) - 1px); font-size:10px; font-family:'Roboto Mono',monospace; color:var(--text-muted); cursor:pointer; background:transparent; border:none; letter-spacing:.04em; transition:background .15s,color .15s; }
+    .ds-tab:hover { background:var(--bg-hover); color:var(--text-primary); }
+    .ds-tab.active { background:var(--accent-blue); color:#fff; }
+    .ds-tabpanel { flex:1; min-height:0; display:none; gap:8px; }
+    .ds-tabpanel.active { display:grid; }
+    #dst-analyze { grid-template-columns:1fr 1fr; grid-template-rows:1fr; }
+    #dst-train { grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; grid-template-areas:"ds-tr ds-ev" "ds-tr ds-pred"; }
+    #dst-published { grid-template-columns:2fr 3fr; grid-template-rows:1fr; }
+    .ds-gen-link { cursor:pointer; color:var(--accent-blue); }
+    .ds-gen-link:hover { text-decoration:underline; }
+    /* ── Data Detail Modal ── */
+    .dm-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.68); z-index:200; display:flex; align-items:center; justify-content:center; }
+    .dm-box { background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius); width:660px; max-width:93vw; max-height:84vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 12px 40px rgba(0,0,0,0.55); }
+    .dm-hd { display:flex; align-items:flex-start; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border); flex-shrink:0; }
+    .dm-body { flex:1; overflow:auto; padding:12px 16px; display:flex; flex-direction:column; gap:10px; }
+    .dm-close { background:var(--bg-hover); border:1px solid var(--border); color:var(--text-primary); border-radius:var(--radius); padding:3px 9px; cursor:pointer; font-size:11px; transition:background .15s; }
+    .dm-close:hover { background:var(--bg-elevated); }
+    .dm-stat { background:var(--bg-elevated); border-radius:var(--radius); padding:6px 10px; min-width:80px; }
+    #ds-tr{grid-area:ds-tr;} #ds-ev{grid-area:ds-ev;} #ds-pred{grid-area:ds-pred;}
     .smtbl{width:100%;border-collapse:collapse;font-size:11px;}
     .smtbl td{padding:3px 6px;border-bottom:1px solid rgba(37,40,54,.4);}
     .smtbl td:first-child{color:var(--text-muted);font-size:10px;}
@@ -252,8 +264,8 @@
   <header id="topbar">
     <span class="logo">QUANT<em>ALPHA</em> LAB</span>
     <div class="ws-tabs">
-      <button class="ws-tab active" data-ws="qr" title="Quant Researcher">QR</button>
-      <button class="ws-tab"        data-ws="ds" title="Data Scientist">DS</button>
+      <button class="ws-tab"        data-ws="qr" title="Quant Researcher">QR</button>
+      <button class="ws-tab active" data-ws="ds" title="Data Scientist">DS</button>
       <button class="ws-tab"        data-ws="pm" title="Portfolio Manager">PM</button>
     </div>
     <span class="sp"></span>
@@ -278,7 +290,7 @@
     <!-- ╔═══════════════════════════════════════╗
          ║  QR — QUANT RESEARCHER               ║
          ╚═══════════════════════════════════════╝ -->
-    <div id="ws-qr" class="workspace active">
+    <div id="ws-qr" class="workspace">
 
       <!-- HFT Factor Expression Editor -->
       <div class="panel" id="qr-ed">
@@ -388,79 +400,166 @@
     <!-- ╔═══════════════════════════════════════╗
          ║  DS — DATA SCIENTIST                 ║
          ╚═══════════════════════════════════════╝ -->
-    <div id="ws-ds" class="workspace">
+    <div id="ws-ds" class="workspace active">
 
-      <!-- Order Book Explorer -->
-      <div class="panel" id="ds-ex">
-        <div class="ph">
-          <span class="pt">&#8855; Order Book Explorer</span>
-          <select id="ds-dataset" class="inp" style="font-size:10px;padding:2px 6px;" onchange="dsDataChange()">
-            <option>VN30F2112 — Full History (2021-04-19 ~ 2021-12-16)</option>
-            <option>VN30F2112 — Nov 2021 (high density)</option>
-            <option>VN30F2112 — Apr–Jul 2021 (wide spread)</option>
-          </select>
-        </div>
-        <div class="pb">
-          <div class="lbl">Level-3 Order Book Statistics</div>
-          <table class="smtbl" id="ds-stats"></table>
-          <div class="lbl">Bid1 &amp; Ask1 Price Over Time (09:00–09:30 sample)</div>
-          <div style="position:relative;height:110px;flex-shrink:0;">
-            <canvas id="ds-ob-chart"></canvas>
-          </div>
-          <div class="lbl">Bid / Ask Quantity Level 1–3</div>
-          <div style="position:relative;height:70px;flex-shrink:0;">
-            <canvas id="ds-qty-chart"></canvas>
-          </div>
-        </div>
+      <!-- DS inner tab bar -->
+      <div class="ds-tabbar">
+        <button class="ds-tab" data-dst="analyze">&#9741; Analyze Data</button>
+        <button class="ds-tab" data-dst="train">&#9881; Train Model</button>
+        <button class="ds-tab active" data-dst="published">&#8593; Published Data</button>
       </div>
 
-      <!-- Rolling-Window ML Trainer -->
-      <div class="panel" id="ds-tr">
-        <div class="ph">
-          <span class="pt">&#9881; HFT Rolling-Window Classifier</span>
-          <div class="pa">
-            <button class="btn btn-p" onclick="dsTrain()">Train</button>
-            <button class="btn btn-g" onclick="dsEval()">Evaluate</button>
-            <button class="btn btn-g" onclick="dsExport()">Export</button>
-          </div>
-        </div>
-        <div class="pb">
-          <div style="flex:1;min-height:0;overflow:hidden;min-height:140px;max-height:200px;">
-            <textarea id="ds-ta"></textarea>
-          </div>
-          <div class="console" id="ds-console">
-            <div>QuantAlpha HFT Console v1.0.0</div>
-            <div style="color:var(--text-muted)">Ready — select a dataset and click Train.</div>
-          </div>
-        </div>
-      </div>
+      <!-- ── Tab 1: Analyze Data ─────────────────────────── -->
+      <div class="ds-tabpanel" id="dst-analyze">
 
-      <!-- Rolling-Window Accuracy + Evaluation -->
-      <div class="panel" id="ds-ev">
-        <div class="ph"><span class="pt">&#9678; Model Evaluation — Rolling Window</span></div>
-        <div class="pb">
-          <div class="lbl">Accuracy over Rolling Windows (30min train → 10s predict)</div>
-          <div style="position:relative;height:110px;flex-shrink:0;">
-            <canvas id="roll-acc-chart"></canvas>
+        <!-- Order Book Explorer -->
+        <div class="panel" id="ds-ex">
+          <div class="ph">
+            <span class="pt">&#8855; Order Book Explorer</span>
+            <select id="ds-dataset" class="inp" style="font-size:10px;padding:2px 6px;" onchange="dsDataChange()">
+              <option>VN30F2112 — Full History (2021-04-19 ~ 2021-12-16)</option>
+              <option>VN30F2112 — Nov 2021 (high density)</option>
+              <option>VN30F2112 — Apr–Jul 2021 (wide spread)</option>
+            </select>
           </div>
-          <div class="lbl">Confusion Matrix</div>
-          <div class="conf-wrap" id="ds-conf"></div>
-          <div class="row g4" style="flex-wrap:wrap;margin-top:4px;" id="ds-scalars"></div>
+          <div class="pb">
+            <div class="lbl">Level-3 Order Book Statistics</div>
+            <table class="smtbl" id="ds-stats"></table>
+            <div class="lbl">Bid1 &amp; Ask1 Price Over Time (09:00–09:30 sample)</div>
+            <div style="position:relative;height:110px;flex-shrink:0;">
+              <canvas id="ds-ob-chart"></canvas>
+            </div>
+            <div class="lbl">Bid / Ask Quantity Level 1–3</div>
+            <div style="position:relative;height:70px;flex-shrink:0;">
+              <canvas id="ds-qty-chart"></canvas>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <!-- Factor Publisher -->
-      <div class="panel" id="ds-pb">
-        <div class="ph"><span class="pt">&#8593; HFT Factor Publisher</span></div>
-        <div class="pb" style="padding:0;">
-          <div class="oa" style="flex:1;">
-            <table class="dt" id="ds-pub-table">
-              <thead><tr><th>Factor</th><th>Type</th><th>Formula</th><th>Author</th><th>Status</th><th>Action</th></tr></thead>
-              <tbody id="ds-pub-tbody"></tbody>
-            </table>
+        <!-- Analysis Script Editor — publishes signals to QR -->
+        <div class="panel" id="ds-script">
+          <div class="ph">
+            <span class="pt">&#9998; Analysis Script — Factor Generator</span>
+            <div class="pa">
+              <button class="btn btn-p" onclick="dsAnalRun()">&#9654; Run</button>
+              <button class="btn btn-g" onclick="dsAnalPublish()">&#8593; Publish to QR</button>
+            </div>
+          </div>
+          <div class="pb">
+            <div style="flex:1;min-height:0;overflow:hidden;min-height:160px;max-height:260px;">
+              <textarea id="ds-analy-ta"></textarea>
+            </div>
+            <div class="console" id="ds-analy-console">
+              <div>Factor Generator v1.0</div>
+              <div style="color:var(--text-muted)">Edit script and click &#9654; Run to compute signals.</div>
+            </div>
           </div>
         </div>
-      </div>
+
+      </div><!-- /dst-analyze -->
+
+      <!-- ── Tab 2: Train Model ──────────────────────────── -->
+      <div class="ds-tabpanel" id="dst-train">
+
+        <!-- ML Trainer (left, spans 2 rows) -->
+        <div class="panel" id="ds-tr">
+          <div class="ph">
+            <span class="pt">&#9881; HFT Rolling-Window Classifier</span>
+            <div class="pa">
+              <button class="btn btn-p" onclick="dsTrain()">Train</button>
+              <button class="btn btn-g" onclick="dsEval()">Evaluate</button>
+              <button class="btn btn-g" onclick="dsExport()">Export</button>
+            </div>
+          </div>
+          <div class="pb">
+            <div style="flex:1;min-height:0;overflow:hidden;min-height:140px;max-height:220px;">
+              <textarea id="ds-ta"></textarea>
+            </div>
+            <div class="console" id="ds-console">
+              <div>QuantAlpha HFT Console v1.0.0</div>
+              <div style="color:var(--text-muted)">Ready — click Train to start rolling-window pipeline.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Model Evaluation (top-right) -->
+        <div class="panel" id="ds-ev">
+          <div class="ph"><span class="pt">&#9678; Model Evaluation — Rolling Window</span></div>
+          <div class="pb">
+            <div class="lbl">Accuracy over Rolling Windows (30min train → 10s predict)</div>
+            <div style="position:relative;height:100px;flex-shrink:0;">
+              <canvas id="roll-acc-chart"></canvas>
+            </div>
+            <div class="lbl">Confusion Matrix</div>
+            <div class="conf-wrap" id="ds-conf"></div>
+            <div class="row g4" style="flex-wrap:wrap;margin-top:4px;" id="ds-scalars"></div>
+          </div>
+        </div>
+
+        <!-- Predicted vs Actual chart (bottom-right) -->
+        <div class="panel" id="ds-pred">
+          <div class="ph"><span class="pt">&#8680; Predicted vs Actual — Sample Windows</span></div>
+          <div class="pb">
+            <div class="lbl">RF Predicted Probability vs Actual Label · 80 rolling windows</div>
+            <div style="position:relative;flex:1;min-height:80px;">
+              <canvas id="ds-pred-chart"></canvas>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /dst-train -->
+
+      <!-- ── Tab 3: Published Data ───────────────────────── -->
+      <div class="ds-tabpanel active" id="dst-published">
+
+        <!-- Left: Data Generator -->
+        <div class="panel" id="ds-gen-editor">
+          <div class="ph">
+            <span class="pt">&#9998; Data Generator</span>
+            <div class="pa">
+              <button class="btn btn-p" onclick="dsGenRun()">&#9654; Run</button>
+            </div>
+          </div>
+          <div class="pb">
+            <div style="flex:1;min-height:0;overflow:hidden;min-height:160px;max-height:300px;">
+              <textarea id="ds-gen-ta"></textarea>
+            </div>
+            <div class="console" id="ds-gen-console">
+              <div>Data Generator v1.0</div>
+              <div style="color:var(--text-muted)">Set DATASET_NAME then click &#9654; Run.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Data Registry -->
+        <div class="panel" id="ds-gen-registry">
+          <div class="ph">
+            <span class="pt">&#128451; Data Registry</span>
+            <div class="pa">
+              <span class="badge ba" style="font-size:9px;" id="ds-gen-count"></span>
+            </div>
+          </div>
+          <div class="pb" style="padding:0;">
+            <div class="oa" style="flex:1;">
+              <table class="dt" id="ds-gen-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Rows</th>
+                    <th>Author</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="ds-gen-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div><!-- /dst-published -->
 
     </div><!-- /ws-ds -->
 
@@ -550,6 +649,30 @@
   </footer>
 
 </div><!-- /#app -->
+
+<!-- ── Data Detail Modal ──────────────────────────────────── -->
+<div id="data-detail-modal" class="dm-overlay" style="display:none;" onclick="closeDataModal(event)">
+  <div class="dm-box">
+    <div class="dm-hd">
+      <div>
+        <div style="font-size:13px;font-weight:700;font-family:'Roboto Mono',monospace;" id="modal-ds-name">—</div>
+        <div class="lbl" id="modal-ds-sub" style="margin-top:3px;">type · source</div>
+      </div>
+      <button class="dm-close" onclick="closeDataDetail()">&#10005; Close</button>
+    </div>
+    <div class="dm-body">
+      <div class="lbl">Statistics</div>
+      <div class="row g4" id="modal-stats" style="flex-wrap:wrap;"></div>
+      <div class="lbl" style="margin-top:4px;">Data Preview — first 10 rows</div>
+      <div class="oa" style="flex:1;min-height:120px;">
+        <table class="dt" id="modal-preview-table">
+          <thead><tr><th>#</th><th>timestamp</th><th>value</th></tr></thead>
+          <tbody id="modal-preview-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div id="hm-tooltip"></div>
 <div id="toast-wrap"></div>
@@ -921,6 +1044,52 @@ for i in range(0, 9000 - latest_sec - 600, pred_sec):
         results.setdefault(name, []).append({'acc': acc, 'f1': f1})
 
     print(f"Window {i//pred_sec}: RF_acc={results['RandomForest'][-1]['acc']:.4f}")`;
+
+// DS Analysis / Factor-Generator code
+const DS_ANALY_CODE = `# ── Data Analysis & Factor Generation ────────────────────────
+# Compute order-book signals from Level-3 data (VN30F2112)
+# Results will be published to the QR Variable Library.
+
+import numpy as np
+import pandas as pd
+
+# ── Load ────────────────────────────────────────────────────
+df = pd.read_csv('VN30F2112_ob3.csv', parse_dates=['timestamp'])
+df.set_index('timestamp', inplace=True)
+
+# ── Mid Price & Spread ──────────────────────────────────────
+df['mid']    = (df['bid1'] + df['ask1']) / 2
+df['spread'] = df['ask1'] - df['bid1']
+
+# ── Order Book Imbalance (OBI) variants ─────────────────────
+def obi(df, w1=1, w2=1, w3=1):
+    wb = w1*df['bid_qty1'] + w2*df['bid_qty2'] + w3*df['bid_qty3']
+    wa = w1*df['ask_qty1'] + w2*df['ask_qty2'] + w3*df['ask_qty3']
+    return (wb - wa) / (wb + wa + 1e-9)
+
+df['OBI_111'] = obi(df, 1, 1, 1)
+df['OBI_910'] = obi(df, 9, 1, 0)
+df['OBI_532'] = obi(df, 5, 3, 2)
+
+# ── Rise Ratio ──────────────────────────────────────────────
+diff = df['mid'].diff()
+for w in [10, 30, 60]:
+    df[f'rise_{w}s'] = diff.gt(0).rolling(w).mean()
+
+# ── Target Label: UP / DOWN in next 10 seconds ──────────────
+df['label'] = (df['mid'].shift(-10) > df['mid']).astype(int)
+
+# ── Descriptive Stats ───────────────────────────────────────
+print(df[['OBI_111','OBI_910','spread','rise_30s','label']].describe())
+print(f"\\nUP rate: {df['label'].mean():.2%}")
+print(f"Spread  mean: {df['spread'].mean():.4f}")
+print(f"OBI_111 std : {df['OBI_111'].std():.4f}")
+
+# ── Publish to QR ───────────────────────────────────────────
+factors = df[['OBI_111', 'OBI_910', 'OBI_532', 'spread',
+              'rise_10s', 'rise_30s', 'rise_60s']]
+# qr_client.publish(factors, dataset='VN30F2112', version='v2')
+print("\\n✓ Factors computed — click 'Publish to QR' to send.")`;
 
 // HFT Factor publisher
 const FACTORS = [
@@ -1435,20 +1604,327 @@ function renderScalars(){
 }
 
 // Factor Publisher
+const FACTOR_DATES = ['2024-11-02','2024-11-05','2024-11-08','2024-11-12','2024-11-15',
+                      '2024-11-18','2024-11-20','2024-11-22','2024-11-25','2024-11-28'];
 function renderFactors(){
   const sb={Published:'bg','Under Review':'ba',Draft:'bm',Deprecated:'br'};
-  $('ds-pub-tbody').innerHTML=FACTORS.map(f=>`
+  $('ds-pub-tbody').innerHTML=FACTORS.map((f,i)=>`
     <tr>
       <td class="mono cb">${f.name}</td>
       <td>${f.type}</td>
       <td class="cm" style="font-size:10px;max-width:120px;overflow:hidden;text-overflow:ellipsis;">${f.formula}</td>
       <td>${f.author}</td>
+      <td style="color:var(--text-muted);font-size:10px;">${FACTOR_DATES[i%FACTOR_DATES.length]}</td>
       <td><span class="badge ${sb[f.status]}">${f.status}</span></td>
       <td><button class="btn btn-g" style="font-size:9px;padding:2px 7px;"
                   onclick="publishFactor('${f.name}')">&#8593; To QR</button></td>
     </tr>`).join('');
+  updatePubCount();
 }
 function publishFactor(name){ toast(`"${name}" published to QR variable library`,'success'); }
+
+// Update published count badge
+function updatePubCount(){
+  const n = FACTORS.filter(f=>f.status==='Published').length;
+  const el=$('ds-pub-count');
+  if(el) el.textContent=`${n} Published`;
+}
+
+// ── Data Generator (Published Data tab) ───────────────────
+const DS_GEN_CODE = `# ── Data Generator ──────────────────────────────────────────
+# Write a script that produces a 1-D series (array / pd.Series).
+# Set DATASET_NAME + DATASET_TYPE, then click ▶ Run.
+# The dataset is registered in the table; click its name to preview.
+
+import pandas as pd
+import numpy as np
+
+df = pd.read_csv('VN30F2112_ob3.csv', parse_dates=['timestamp'])
+
+# ── Example A: OBI from Order Book ──────────────────────────
+def compute_obi(df, w1=5, w2=3, w3=2):
+    wb = w1*df['bid_qty1'] + w2*df['bid_qty2'] + w3*df['bid_qty3']
+    wa = w1*df['ask_qty1'] + w2*df['ask_qty2'] + w3*df['ask_qty3']
+    return (wb - wa) / (wb + wa + 1e-9)
+
+result = compute_obi(df)
+
+# ── Example B: SVM output (from trained model) ───────────────
+# from sklearn.svm import SVC
+# import joblib
+# model = joblib.load('/registry/models/svm_hft_ob3_v1.pkl')
+# result = model.predict_proba(X_test)[:, 1]
+
+# ── Register ─────────────────────────────────────────────────
+DATASET_NAME = 'OBI_532_v2'   # ← shown in registry table
+DATASET_TYPE = 'OBI Factor'   # ← OBI Factor / Model Output / Rise Ratio / Depth
+
+print(f"Generated {len(result)} rows for '{DATASET_NAME}'")`;
+
+const GEN_DATASETS = [
+  { name:'OBI_111',   type:'OBI Factor',    source:'compute_obi(1,1,1)', rows:41496, mean:0.011, std:0.322, min:-0.981, max:0.991, status:'Published',    author:'J. Smith',  date:'2024-11-02' },
+  { name:'OBI_910',   type:'OBI Factor',    source:'compute_obi(9,1,0)', rows:41496, mean:0.008, std:0.317, min:-0.972, max:0.981, status:'Published',    author:'M. Chen',   date:'2024-11-05' },
+  { name:'rise_10s',  type:'Rise Ratio',    source:'rise_ratio(df,10)',  rows:41486, mean:0.502, std:0.081, min:0.0,   max:1.0,   status:'Published',    author:'A. Patel',  date:'2024-11-08' },
+  { name:'rise_30s',  type:'Rise Ratio',    source:'rise_ratio(df,30)',  rows:41466, mean:0.501, std:0.073, min:0.0,   max:1.0,   status:'Published',    author:'J. Smith',  date:'2024-11-12' },
+  { name:'depth_111', type:'Depth',         source:'WQ_a/WQ_b(1,1,1)',  rows:41496, mean:1.004, std:0.318, min:0.12,  max:8.73,  status:'Under Review', author:'L. Kim',    date:'2024-11-15' },
+  { name:'OBI_532',   type:'OBI Factor',    source:'compute_obi(5,3,2)', rows:41496, mean:0.009, std:0.315, min:-0.979,max:0.986, status:'Draft',        author:'R. Torres', date:'2024-11-18' },
+  { name:'SVM_pred',  type:'Model Output',  source:'SVM(RBF).predict',  rows:8300,  mean:0.518, std:0.187, min:0.031, max:0.971, status:'Draft',        author:'L. Kim',    date:'2024-11-20' },
+];
+
+let dsGenCM;
+function initDSGenEditor(){
+  dsGenCM = CodeMirror.fromTextArea($('ds-gen-ta'), {
+    mode:'python', theme:'quantlab', lineNumbers:true,
+    matchBrackets:true, autoCloseBrackets:true, indentUnit:4, tabSize:4,
+  });
+  dsGenCM.setValue(DS_GEN_CODE);
+  dsGenCM.setSize('100%','100%');
+}
+
+function genLog(msg, color='#22d3a0'){
+  const c = $('ds-gen-console');
+  const el = document.createElement('div');
+  el.style.color = color; el.textContent = msg;
+  c.appendChild(el); c.scrollTop = c.scrollHeight;
+}
+
+function dsGenRun(){
+  const c = $('ds-gen-console'); c.innerHTML = '';
+  const code = dsGenCM.getValue();
+  const nameMatch = code.match(/DATASET_NAME\s*=\s*['"]([^'"]+)['"]/);
+  const typeMatch = code.match(/DATASET_TYPE\s*=\s*['"]([^'"]+)['"]/);
+  const dsName = nameMatch ? nameMatch[1] : `dataset_${Date.now()}`;
+  const dsType = typeMatch ? typeMatch[1] : 'Custom';
+
+  // deterministic-ish stats from name hash
+  let h = dsName.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+  const rng = () => { h = (h*9301+49297)%233280; return h/233280; };
+  const mean = +(rng()*0.06 - 0.03 + 0.01).toFixed(4);
+  const std  = +(0.27 + rng()*0.1).toFixed(4);
+  const min  = +(-0.92 - rng()*0.07).toFixed(4);
+  const max  = +(0.92  + rng()*0.07).toFixed(4);
+  const rows = dsType === 'Model Output' ? 8300 : 41496;
+
+  const steps = [
+    [`> Running generator script…`,                              '#4f8ef7'],
+    [`  Loading VN30F2112_ob3.csv (${rows.toLocaleString()} rows)…`, '#6b7280'],
+    [`  Computing ${dsName}…`,                                  '#6b7280'],
+    [`  Validating output shape (${rows.toLocaleString()} × 1)…`, '#a8d8ea'],
+    [`  mean: ${mean}  std: ${std}  min: ${min}  max: ${max}`, '#22d3a0'],
+    [`  Generated ${rows.toLocaleString()} rows for '${dsName}'`,'#22d3a0'],
+    [`✓ Dataset registered — click name or View to preview.`,   '#22d3a0'],
+  ];
+  let i = 0;
+  const iv = setInterval(() => {
+    if (i < steps.length) { genLog(...steps[i++]); }
+    else {
+      clearInterval(iv);
+      const existing = GEN_DATASETS.find(d => d.name === dsName);
+      if (existing) {
+        Object.assign(existing, { mean, std, min, max, date: new Date().toISOString().slice(0,10) });
+      } else {
+        GEN_DATASETS.push({ name:dsName, type:dsType, source:'Generated', rows,
+          mean, std, min, max, status:'Draft',
+          author:'You', date:new Date().toISOString().slice(0,10) });
+      }
+      renderGenDatasets();
+      toast(`'${dsName}' generated — Draft`, 'success');
+    }
+  }, 200);
+}
+
+function dsGenPublishSelected(name){
+  const d = GEN_DATASETS.find(d => d.name === name);
+  if (d){ d.status = 'Published'; renderGenDatasets(); toast(`'${name}' published to QR`,'success'); }
+}
+
+function renderGenDatasets(){
+  const sb = { Published:'bg', 'Under Review':'ba', Draft:'bm', Deprecated:'br' };
+  $('ds-gen-tbody').innerHTML = GEN_DATASETS.map(d => `
+    <tr>
+      <td><span class="mono ds-gen-link" onclick="showDataDetail('${d.name}')">${d.name}</span></td>
+      <td style="font-size:10px;">${d.type}</td>
+      <td style="font-variant-numeric:tabular-nums;">${d.rows.toLocaleString()}</td>
+      <td style="font-size:10px;">${d.author}</td>
+      <td style="color:var(--text-muted);font-size:10px;">${d.date}</td>
+      <td><span class="badge ${sb[d.status]}">${d.status}</span></td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-g" style="font-size:9px;padding:2px 6px;"
+                onclick="showDataDetail('${d.name}')">&#128269; View</button>
+        ${d.status!=='Published'
+          ? `<button class="btn btn-p" style="font-size:9px;padding:2px 6px;margin-left:3px;"
+                     onclick="dsGenPublishSelected('${d.name}')">&#8593; Publish</button>`
+          : ''}
+      </td>
+    </tr>`).join('');
+  const pub = GEN_DATASETS.filter(d => d.status==='Published').length;
+  const el = $('ds-gen-count');
+  if (el) el.textContent = `${GEN_DATASETS.length} datasets · ${pub} published`;
+}
+
+// ── Data Detail Modal ──────────────────────────────────────
+function showDataDetail(name){
+  const d = GEN_DATASETS.find(x => x.name === name);
+  if (!d) return;
+  $('modal-ds-name').textContent = d.name;
+  $('modal-ds-sub').textContent  = `${d.type} · ${d.source} · ${d.rows.toLocaleString()} rows`;
+  $('modal-stats').innerHTML = [
+    ['Rows',   d.rows.toLocaleString()],
+    ['Mean',   d.mean.toFixed(4)],
+    ['Std',    d.std.toFixed(4)],
+    ['Min',    d.min.toFixed(4)],
+    ['Max',    d.max.toFixed(4)],
+    ['Author', d.author],
+    ['Date',   d.date],
+    ['Status', d.status],
+  ].map(([l,v]) => `
+    <div class="dm-stat">
+      <div class="lbl">${l}</div>
+      <div style="font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px;">${v}</div>
+    </div>`).join('');
+
+  // Deterministic preview rows from name seed
+  let s = d.name.split('').reduce((a,c)=>a+c.charCodeAt(0),0);
+  const rng = () => { s=(s*9301+49297)%233280; return s/233280; };
+  const base = new Date('2021-04-19T09:00:00');
+  $('modal-preview-tbody').innerHTML = Array.from({length:10}, (_,i) => {
+    const ts = new Date(base.getTime()+i*10000).toISOString().replace('T',' ').slice(0,19);
+    const v  = (rng()-0.5)*d.std*3 + d.mean;
+    const cls = v >= 0 ? 'cg' : 'cr';
+    return `<tr>
+      <td style="color:var(--text-muted);">${i+1}</td>
+      <td class="mono" style="font-size:10px;">${ts}</td>
+      <td class="mono ${cls}" style="font-variant-numeric:tabular-nums;">${v.toFixed(6)}</td>
+    </tr>`;
+  }).join('');
+  $('data-detail-modal').style.display = 'flex';
+}
+function closeDataDetail(){ $('data-detail-modal').style.display = 'none'; }
+function closeDataModal(e){ if (e.target === $('data-detail-modal')) closeDataDetail(); }
+
+// ── DS Inner Tab Switcher ──────────────────────────────────
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.querySelectorAll('.ds-tab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      const dst = tab.dataset.dst;
+      document.querySelectorAll('.ds-tab').forEach(t=>t.classList.toggle('active', t===tab));
+      document.querySelectorAll('.ds-tabpanel').forEach(p=>{
+        p.style.display = 'none'; p.classList.remove('active');
+      });
+      const panel = document.getElementById('dst-'+dst);
+      if(panel){ panel.style.display='grid'; requestAnimationFrame(()=>panel.classList.add('active')); }
+    });
+  });
+});
+
+// ── Analysis Script Editor ─────────────────────────────────
+let dsAnalCM;
+function initDSAnalEditor(){
+  dsAnalCM = CodeMirror.fromTextArea($('ds-analy-ta'),{
+    mode:'python', theme:'quantlab', lineNumbers:true,
+    matchBrackets:true, autoCloseBrackets:true, indentUnit:4, tabSize:4,
+  });
+  dsAnalCM.setValue(DS_ANALY_CODE);
+  dsAnalCM.setSize('100%','100%');
+}
+
+function analLog(msg, color='#22d3a0'){
+  const c=$('ds-analy-console');
+  const el=document.createElement('div'); el.style.color=color; el.textContent=msg;
+  c.appendChild(el); c.scrollTop=c.scrollHeight;
+}
+
+function dsAnalRun(){
+  const c=$('ds-analy-console'); c.innerHTML='';
+  const steps=[
+    ['> Loading VN30F2112_ob3.csv…', '#4f8ef7'],
+    ['  41,496 snapshots × 12 columns loaded.', '#6b7280'],
+    ['  Computing OBI_111, OBI_910, OBI_532…', '#6b7280'],
+    ['  Computing rise_10s, rise_30s, rise_60s…', '#6b7280'],
+    ['  Labelling UP/DOWN (next 10 s)…', '#a8d8ea'],
+    ['', ''],
+    ['  OBI_111  mean: 0.011  std: 0.322', '#6b7280'],
+    ['  OBI_910  mean: 0.008  std: 0.317', '#6b7280'],
+    ['  spread   mean: 1.48   std: 0.93', '#6b7280'],
+    ['  rise_30s mean: 0.502  std: 0.081', '#6b7280'],
+    ['', ''],
+    ['  UP rate: 51.82%', '#22d3a0'],
+    ['  Spread  mean: 1.4823', '#22d3a0'],
+    ['  OBI_111 std : 0.3218', '#22d3a0'],
+    ['', ''],
+    ['  ✓ Factors computed — click "Publish to QR" to send.', '#22d3a0'],
+  ];
+  let i=0;
+  const iv=setInterval(()=>{
+    if(i<steps.length){ const [m,c]=steps[i++]; if(m) analLog(m,c); }
+    else{ clearInterval(iv); toast('Analysis complete','success'); }
+  }, 160);
+}
+
+function dsAnalPublish(){
+  analLog('> Publishing factors to QR Variable Library…', '#4f8ef7');
+  setTimeout(()=>{ analLog('  ✓ OBI_111, OBI_910, OBI_532, spread, rise_10s, rise_30s, rise_60s', '#22d3a0'); }, 300);
+  setTimeout(()=>{ analLog('  ✓ Version v2 registered. Dataset: VN30F2112', '#22d3a0'); toast('Factors published to QR','success'); }, 600);
+}
+
+// ── Predicted vs Actual Chart ──────────────────────────────
+function initPredActualChart(){
+  const n=80;
+  const rng=(seed)=>{ let s=seed; return ()=>{ s=(s*9301+49297)%233280; return s/233280; }; };
+  const r=rng(42), r2=rng(137);
+  const actual  = Array.from({length:n}, ()=> r()<0.518 ? 1 : 0);
+  const predProb= actual.map((a,i)=>{
+    const acc=ROLL_ACC['RandomForest'][i] ?? 0.648;
+    const correct=r2()<acc;
+    const base = correct ? (a===1 ? 0.55+r2()*0.30 : 0.15+r2()*0.25)
+                         : (a===1 ? 0.20+r2()*0.25 : 0.55+r2()*0.30);
+    return +base.toFixed(3);
+  });
+  const labels=Array.from({length:n},(_,i)=>`W${i+1}`);
+  const ctx=$('ds-pred-chart').getContext('2d');
+  new Chart(ctx,{
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {
+          label:'Actual (UP=1 / DOWN=0)',
+          data:actual,
+          borderColor:'#22d3a0', borderWidth:1.5,
+          pointRadius:actual.map(a=>a?2.5:2),
+          pointBackgroundColor:actual.map(a=>a?'#22d3a0':'#f45c5c'),
+          stepped:'before', fill:false, yAxisID:'y',
+        },
+        {
+          label:'RF Predicted Prob',
+          data:predProb,
+          borderColor:'#4f8ef7', borderWidth:1.5,
+          pointRadius:0, tension:0.4, fill:false, yAxisID:'y',
+        },
+        {
+          label:'Decision Threshold (0.5)',
+          data:Array(n).fill(0.5),
+          borderColor:'rgba(245,166,35,0.5)', borderWidth:1,
+          borderDash:[4,4], pointRadius:0, fill:false, yAxisID:'y',
+        },
+      ],
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ display:true, labels:{ color:'#6b7280', font:{size:8,family:'Roboto Mono'}, boxWidth:10 } },
+        tooltip:{ backgroundColor:'#1a1d28', borderColor:'#252836', borderWidth:1,
+          callbacks:{ label: ctx=>`${ctx.dataset.label}: ${ctx.parsed.y}` } },
+      },
+      scales:{
+        x:{ grid:{color:'#151820'}, ticks:{color:'#3d4460', maxTicksLimit:12, font:{size:8}} },
+        y:{ grid:{color:'#151820'}, ticks:{color:'#3d4460', font:{size:8}},
+            min:-0.05, max:1.05,
+            title:{display:true,text:'Value',color:'#6b7280',font:{size:8}} },
+      },
+    },
+  });
+}
 
 
 /* ═══════════════════════════════════════════════════════════
@@ -1646,13 +2122,16 @@ window.addEventListener('load', () => {
   // DS (tiny delay for layout)
   setTimeout(()=>{
     initDSEditor();
+    initDSAnalEditor();
+    initDSGenEditor();
     dsDataChange();
     initDSOBChart();
     initDSQtyChart();
     initRollAccChart();
+    initPredActualChart();
     renderConfusion();
     renderScalars();
-    renderFactors();
+    renderGenDatasets();
   }, 80);
 
   // PM
