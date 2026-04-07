@@ -1,0 +1,9 @@
+<span class="logo">QUANT<em>ALPHA</em> LAB</span>
+<div class="ws-tabs">
+  <button class="ws-tab" [class.active]="workspace === 'QR'" (click)="setWorkspace('QR')" title="Quant Researcher">QR</button>
+  <button class="ws-tab" [class.active]="workspace === 'DS'" (click)="setWorkspace('DS')" title="Data Scientist">DS</button>
+  <button class="ws-tab" [class.active]="workspace === 'PM'" (click)="setWorkspace('PM')" title="Portfolio Manager">PM</button>
+</div>
+<span class="sp"></span>
+<span id="clock">{{timeString}}</span>
+<div class="avatar" title="John D.">JD</div>

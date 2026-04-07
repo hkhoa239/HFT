@@ -1,0 +1,38 @@
+#statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 12px;
+  font-size: 10px;
+  color: var(--text-muted);
+  height: 100%;
+}
+
+.sb-left, .sb-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sb-sep {
+  width: 1px;
+  height: 10px;
+  background: var(--border);
+  opacity: 0.5;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: 0 0 5px var(--accent-green);
+  margin-right: 6px;
+}
+
+.cw { color: var(--text-primary); }
+.cb { color: var(--accent-blue); }
+.cg { color: var(--accent-green); }
+.ca { color: var(--accent-amber); }

@@ -1,0 +1,249 @@
+<!-- Strategy Leaderboard -->
+<div class="panel" id="pm-lb">
+  <div class="ph">
+    <span class="pt">&#9812; HFT Strategy Leaderboard</span>
+    <div class="pa">
+      <input
+        type="text"
+        class="inp"
+        placeholder="Search strategy..."
+        style="width: 140px"
+        (input)="filterStrats($any($event.target).value)"
+      />
+    </div>
+  </div>
+  <div class="pb" style="padding: 0">
+    <div class="oa" style="flex: 1">
+      <table class="dt">
+        <thead>
+          <tr>
+            <th (click)="sortStrats('id')" style="cursor: pointer">Strategy</th>
+            <th (click)="sortStrats('author')" style="cursor: pointer">Author</th>
+            <th>Model/Weights</th>
+            <th (click)="sortStrats('totalPnL')" style="cursor: pointer">Total PnL</th>
+            <th (click)="sortStrats('sharpe')" style="cursor: pointer">Sharpe</th>
+            <th (click)="sortStrats('winRate')" style="cursor: pointer">Win Rate</th>
+            <th (click)="sortStrats('maxDD')" style="cursor: pointer">Max DD</th>
+            <th>PnL Curve</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let s of strategies">
+            <td class="mono cb">{{ s.id }}</td>
+            <td>{{ s.author }}</td>
+            <td>
+              <span class="mono" style="font-size: 9px">{{ s.model }}</span
+              ><br />
+              <span style="font-size: 8px; color: var(--text-muted)"
+                >{{ s.weights }} / lb={{ s.lb }}</span
+              >
+            </td>
+            <td [class]="s.totalPnL >= 0 ? 'cg' : 'cr'" style="font-weight: 600">
+              {{ s.totalPnL >= 0 ? '+' : '' }}{{ s.totalPnL }} bps
+            </td>
+            <td [class]="s.sharpe >= 1 ? 'cg' : s.sharpe >= 0 ? 'ca' : 'cr'">
+              {{ s.sharpe.toFixed(2) }}
+            </td>
+            <td [class]="s.winRate >= 0.55 ? 'cg' : s.winRate >= 0.5 ? 'ca' : 'cr'">
+              {{ (s.winRate * 100).toFixed(1) }}%
+            </td>
+            <td class="cr">-{{ s.maxDD }} bps</td>
+            <td style="padding: 4px 8px" [innerHTML]="sparklines[s.id]"></td>
+            <td>
+              <span
+                class="badge"
+                [class.bg]="s.status === 'Active'"
+                [class.ba]="s.status === 'Paused'"
+                [class.bm]="s.status === 'Archived'"
+                >{{ s.status }}</span
+              >
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Correlation Heatmap -->
+<div class="panel" id="pm-m">
+  <div class="ph">
+    <span class="pt">&#9638; Alpha Strategy Correlation</span>
+    <div class="pa"><span class="badge bb">Pearson &rho;</span></div>
+  </div>
+  <div class="pb" style="padding: 10px; overflow: hidden">
+    <div
+      id="heatmap-wrap"
+      style="position: relative; width: 100%; height: 100%; display: flex; flex-direction: row"
+    >
+      <!-- Row Labels -->
+      <div
+        style="
+          width: 25px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          margin-bottom: 14px;
+          font-size: 6px;
+          color: var(--text-muted);
+          text-align: right;
+          padding-right: 4px;
+          padding-top: 10px;
+        "
+      >
+        <span *ngFor="let label of stratLabels; let i = index">{{
+          label.replace('STRAT-', 'S')
+        }}</span>
+      </div>
+
+      <div style="flex: 1; display: flex; flex-direction: column">
+        <div style="flex: 1; display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px">
+          <div
+            *ngFor="let cell of heatmapCells; let i = index"
+            [ngStyle]="cell.style"
+            (mouseenter)="showTooltip(cell, $event)"
+            (mousemove)="showTooltip(cell, $event)"
+            (mouseleave)="hideTooltip()"
+          >
+            <span
+              *ngIf="cell.row === cell.col"
+              style="font-size: 6px; color: #fff; font-weight: 600"
+              >1.0</span
+            >
+          </div>
+        </div>
+
+        <!-- Column Labels -->
+        <div
+          style="
+            display: flex;
+            justify-content: space-between;
+            margin-top: 4px;
+            font-size: 6px;
+            color: var(--text-muted);
+            font-family: 'Roboto Mono';
+          "
+        >
+          <span *ngFor="let label of stratLabels" style="width: 10%; text-align: center">{{
+            label.replace('STRAT-', 'S')
+          }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Heatmap Tooltip -->
+  <div
+    *ngIf="hoveredCell"
+    class="h-tip"
+    [style.left.px]="hoveredCell.x"
+    [style.top.px]="hoveredCell.y"
+  >
+    <b style="color: var(--accent-blue)">{{ hoveredCell.labelI }}</b>
+    &times; <b style="color: var(--accent-blue)">{{ hoveredCell.labelJ }}</b
+    ><br />
+    <span [style.color]="hoveredCell.val >= 0 ? 'var(--accent-green)' : 'var(--accent-red)'"
+      >&rho; = {{ hoveredCell.val.toFixed(3) }}</span
+    ><br />
+    <span style="color: var(--text-muted); font-size: 9px">
+      {{ hoveredCell.modelI }} {{ hoveredCell.weightsI }} / {{ hoveredCell.modelJ }}
+      {{ hoveredCell.weightsJ }}
+    </span>
+  </div>
+</div>
+
+<!-- Model Performance Comparison -->
+<div class="panel" id="pm-comp">
+  <div class="ph">
+    <span class="pt">&#128202; Model Performance Comparison</span>
+  </div>
+  <div class="pb" style="padding: 0">
+    <div class="oa" style="flex: 1">
+      <table class="dt">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Model</th>
+            <th>Acc Mean</th>
+            <th>Acc Std</th>
+            <th>F1 Mean</th>
+            <th>Best Win</th>
+            <th>Performance Bar</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let m of modelsPerf; let i = index">
+            <td class="cm">#{{ i + 1 }}</td>
+            <td>
+              <div class="row g6">
+                <div
+                  [style.background]="m.color"
+                  style="width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0"
+                ></div>
+                {{ m.model }}
+              </div>
+            </td>
+            <td class="cg">{{ (m.accMean * 100).toFixed(1) }}%</td>
+            <td class="cm">&plusmn;{{ (m.accStd * 100).toFixed(1) }}%</td>
+            <td class="cb">{{ (m.f1Mean * 100).toFixed(1) }}%</td>
+            <td class="cm">{{ m.bestWin }}</td>
+            <td>
+              <div class="row g4" style="align-items: center">
+                <div
+                  [style.background]="m.color"
+                  [style.width.px]="(m.accMean / 0.7) * 70"
+                  style="height: 5px; border-radius: 2px; opacity: 0.7"
+                ></div>
+                <span class="cm" style="font-size: 9px">{{ (m.accMean * 100).toFixed(1) }}%</span>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Order Book Depth + Strategy Allocation -->
+<div class="panel" id="pm-al">
+  <div class="ph">
+    <span class="pt">&#9677; Live Order Book Depth &mdash; <span>09:30:00</span></span>
+  </div>
+  <div class="pb" style="display: flex; flex-direction: column">
+    <div style="position: relative; height: 120px; flex-shrink: 0">
+      <app-chart *ngIf="depthConfig" [config]="depthConfig"></app-chart>
+    </div>
+    <div class="lbl" style="margin-top: 8px; padding-left: 10px">
+      &raquo; Current Deployment &amp; Portfolio Allocation
+    </div>
+    <div class="oa" style="flex: 1">
+      <table class="dt">
+        <thead>
+          <tr>
+            <th>Strategy</th>
+            <th>Weight</th>
+            <th>Signal</th>
+            <th>PnL Contrib</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let d of deployment">
+            <td class="mono cb">{{ d.strat }}</td>
+            <td>{{ d.weight }}%</td>
+            <td>
+              <span
+                class="badge"
+                [class.bg]="d.signal === 'BUY'"
+                [class.br]="d.signal === 'SELL'"
+                [class.bm]="d.signal === 'HOLD' || d.signal === '—'"
+                >{{ d.signal }}</span
+              >
+            </td>
+            <td class="cg">+{{ d.contrib.toFixed(2) }}%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

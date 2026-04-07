@@ -1,0 +1,64 @@
+:host {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  grid-template-rows: 1fr 52px 1fr;
+  gap: 8px;
+  grid-template-areas: 
+    "qr-ed qr-vl" 
+    "qr-sc qr-sc" 
+    "qr-ch qr-mx";
+  height: 100%;
+  overflow: hidden;
+}
+
+#qr-ed { grid-area: qr-ed; }
+#qr-vl { grid-area: qr-vl; }
+#qr-sc { 
+  grid-area: qr-sc; 
+  display: flex;
+  flex-direction: row; 
+  align-items: center; 
+  padding: 0 14px; 
+  gap: 12px; 
+}
+#qr-ch { grid-area: qr-ch; }
+#qr-mx { grid-area: qr-mx; }
+
+.sim-grp { 
+  display: flex; 
+  align-items: center; 
+  gap: 6px; 
+  color: var(--text-muted); 
+  font-size: 11px; 
+}
+
+.var-cat-lbl { 
+  font-size: 9px; 
+  text-transform: uppercase; 
+  letter-spacing: .1em; 
+  color: var(--text-muted); 
+  margin-bottom: 4px; 
+  padding: 2px 4px; 
+}
+
+.var-item { 
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  padding: 4px 6px; 
+  border-radius: var(--radius); 
+  cursor: pointer; 
+  font-size: 11px; 
+  color: var(--text-code); 
+  transition: background .12s; 
+}
+
+.var-item:hover { background: var(--bg-hover); }
+
+.mxgrid { 
+  display: grid; 
+  grid-template-columns: 1fr 1fr; 
+  gap: 6px; 
+  height: 100%; 
+  overflow-y: auto;
+}

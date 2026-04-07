@@ -1,0 +1,119 @@
+<!-- HFT Factor Expression Editor -->
+<div class="panel" id="qr-ed">
+  <div class="ph">
+    <span class="pt">&#8706; HFT Factor Expression Editor</span>
+    <div class="pa">
+      <button class="btn btn-g" (click)="ns.info('Format complete')">Format</button>
+      <button class="btn btn-g" (click)="ns.success('Saved to local registry')">Save</button>
+      <button class="btn btn-g" (click)="ns.info('Sharing link copied')">Share</button>
+    </div>
+  </div>
+  <div style="flex:1;min-height:0;overflow:hidden;">
+    <app-editor [value]="qrCode" (valueChange)="qrCode = $event"></app-editor>
+  </div>
+</div>
+
+<!-- Order Book Variable Library -->
+<div class="panel" id="qr-vl">
+  <div class="ph"><span class="pt">&#9636; OB Variable Library</span></div>
+  <div class="pb">
+    <input class="inp w100" type="text" placeholder="Search variables…" (input)="filterVars(search.value)" #search>
+    <div id="var-list" style="flex:1;overflow-y:auto;margin-top:8px;">
+      <div *ngFor="let cat of varCategories" style="margin-bottom:10px;">
+        <div class="var-cat-lbl" *ngIf="getFilteredVars(cat).length">{{cat}}</div>
+        <div class="var-item" *ngFor="let v of getFilteredVars(cat)" [title]="v.desc" (click)="qrCode = qrCode + v.name">
+          <span class="mono">{{v.name}}</span>
+          <span *ngIf="v.ds" class="badge bb" style="font-size:8px;margin-left:4px;">DS</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Simulation Control -->
+<div class="panel" id="qr-sc">
+  <div class="sim-grp">
+    <span>Instrument</span>
+    <select class="inp">
+      <option selected>VN30F2112</option>
+      <option>CSI 300 Futures</option>
+      <option>Nikkei 225 Futures</option>
+    </select>
+  </div>
+  <div class="sim-grp">
+    <span>Lookback</span>
+    <select class="inp">
+      <option>10s</option>
+      <option>30s</option>
+      <option selected>60s</option>
+      <option>120s</option>
+    </select>
+  </div>
+  <div class="sim-grp">
+    <span>Pred Window</span>
+    <select class="inp">
+      <option>5s</option>
+      <option selected>10s</option>
+      <option>30s</option>
+    </select>
+  </div>
+  <div class="sim-grp">
+    <span>OBI Weights</span>
+    <select class="inp">
+      <option selected>(1,1,1)</option>
+      <option>(9,1,0)</option>
+      <option>(5,3,2)</option>
+    </select>
+  </div>
+  <button id="run-btn" class="btn btn-run" [class.running]="isSimulating" (click)="runBacktest()" style="margin-left:auto;">
+    <ng-container *ngIf="!isSimulating">&#9654; RUN BACKTEST</ng-container>
+    <ng-container *ngIf="isSimulating">⟳ RUNNING…</ng-container>
+  </button>
+  <div id="sim-prog" *ngIf="isSimulating" style="display:flex;align-items:center;gap:10px;margin-right:10px;flex:1;">
+    <div class="prog-t">
+      <div class="prog-f" [style.width.%]="simProgress"></div>
+    </div>
+    <span id="sim-eta" style="font-size:9px;color:var(--text-muted);min-width:50px;">{{simEta}}</span>
+  </div>
+</div>
+
+<!-- Cumulative HFT PnL Chart -->
+<div class="panel" id="qr-ch">
+  <div class="ph">
+    <span class="pt">&#8767; Cumulative PnL — Alpha Signal Backtest (bps)</span>
+    <div class="pa">
+      <span class="badge bg">+33.7 bps</span>
+      <span class="badge bb">Win Rate 52.0%</span>
+    </div>
+  </div>
+  <div class="pb" style="padding:4px 10px;">
+    <div style="font-size:9px;color:var(--text-muted);margin-bottom:4px;">
+      submit=1&amp;true=1 &rarr; +spread | submit=1&amp;true=0 &rarr; &minus;spread | submit=0 &rarr; 0
+    </div>
+    <div style="position:relative;flex:1;min-height:0;">
+      <app-chart *ngIf="pnlConfig" [config]="pnlConfig"></app-chart>
+    </div>
+    <div class="row g8" style="flex-shrink:0;margin-top:4px;border-top:1px solid rgba(255,255,255,0.05);padding-top:4px;">
+      <span class="lbl">Last Trace:</span>
+      <span class="badge bg" id="last-trade-badge">{{pnlSummary.lastTrace}}</span>
+      <span class="lbl" style="margin-left:8px;">Signal (OBI):</span>
+      <span id="obi-val" class="cg" style="font-size:11px;font-weight:700;">{{pnlSummary.obi}}</span>
+      <span class="lbl" style="margin-left:8px;">RR (10s):</span>
+      <span id="rr-val" class="cb" style="font-size:11px;font-weight:700;">{{pnlSummary.rr}}</span>
+    </div>
+  </div>
+</div>
+
+<!-- HFT Backtest Metrics (PnL-based) -->
+<div class="panel" id="qr-mx">
+  <div class="ph"><span class="pt">&#8721; Backtest Metrics</span></div>
+  <div class="pb" style="padding:8px;">
+    <div class="mxgrid" id="qr-metrics-grid">
+      <div class="mc" *ngFor="let m of metrics">
+        <div class="ml">{{m.l}}</div>
+        <div class="mv" [class]="m.cls">{{m.v}}</div>
+        <div class="ms">{{m.s}}</div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,45 @@
+:host {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  grid-template-rows: 1.3fr 1fr;
+  gap: 8px;
+  grid-template-areas: 
+    "lb hm" 
+    "pm al";
+  height: 100%;
+}
+
+#pm-lb { grid-area: lb; }
+#pm-m { grid-area: hm; }
+#pm-comp { grid-area: pm; }
+#pm-al { grid-area: al; }
+
+/* Heatmap Tooltip */
+.h-tip {
+  position: fixed;
+  background: #1a1d28;
+  border: 1px solid #252836;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 10px;
+  color: #fff;
+  z-index: 10000;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  transform: translate(-50%, -100%);
+}
+
+.oa { overflow: auto; }
+
+/* Custom Datatable for Sparklines & Badges */
+.dt td {
+  vertical-align: middle;
+}
+
+.panel-odd {
+  width: 100%;
+}
+
+.panel-even {
+  width: 100%;
+}

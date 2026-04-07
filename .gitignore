@@ -11,3 +11,9 @@ ML-HFT-master/
 
 # ── Large data files (tracked via Git LFS if needed) ─────────
 # data/VN30F2112.csv
+legacy/
+
+# ── Frontend ─────────────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
