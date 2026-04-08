@@ -5,5 +5,9 @@
   <button class="ws-tab" [class.active]="workspace === 'PM'" (click)="setWorkspace('PM')" title="Portfolio Manager">PM</button>
 </div>
 <span class="sp"></span>
+<span class="role-badge" [class]="user?.role?.toLowerCase() || ''">{{user?.role}}</span>
 <span id="clock">{{timeString}}</span>
-<div class="avatar" title="John D.">JD</div>
+<div class="user-pill" (click)="onLogout()" title="Click to Logout">
+  <span class="username">{{user?.username}}</span>
+  <div class="avatar">{{getInitials()}}</div>
+</div>

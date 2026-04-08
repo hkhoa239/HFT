@@ -230,19 +230,19 @@ const STRATEGIES: Strategy[] = [
 
 const MODELS_PERF = [
   { model: 'RandomForest', accMean: 0.6483, accStd: 0.0412, f1Mean: 0.6310, bestWin: 'W#42', color: '#22d3a0' },
-  { model: 'ExtraTrees',   accMean: 0.6381, accStd: 0.0385, f1Mean: 0.6194, bestWin: 'W#18', color: '#4f8ef7' },
-  { model: 'GradBoost',    accMean: 0.6267, accStd: 0.0512, f1Mean: 0.6084, bestWin: 'W#82', color: '#f5a623' },
-  { model: 'AdaBoost',     accMean: 0.6012, accStd: 0.0622, f1Mean: 0.5818, bestWin: 'W#11', color: '#f45c5c' },
-  { model: 'SVC (RBF)',    accMean: 0.5884, accStd: 0.0211, f1Mean: 0.5672, bestWin: 'W#07', color: '#a78bfa' },
+  { model: 'ExtraTrees', accMean: 0.6381, accStd: 0.0385, f1Mean: 0.6194, bestWin: 'W#18', color: '#4f8ef7' },
+  { model: 'GradBoost', accMean: 0.6267, accStd: 0.0512, f1Mean: 0.6084, bestWin: 'W#82', color: '#f5a623' },
+  { model: 'AdaBoost', accMean: 0.6012, accStd: 0.0622, f1Mean: 0.5818, bestWin: 'W#11', color: '#f45c5c' },
+  { model: 'SVC (RBF)', accMean: 0.5884, accStd: 0.0211, f1Mean: 0.5672, bestWin: 'W#07', color: '#a78bfa' },
 ];
 
 const DEPLOYMENT = [
-  { strat: 'STRAT-001', weight: 25, signal: 'BUY',  contrib: 1.42 },
+  { strat: 'STRAT-001', weight: 25, signal: 'BUY', contrib: 1.42 },
   { strat: 'STRAT-002', weight: 20, signal: 'HOLD', contrib: 0.88 },
   { strat: 'STRAT-003', weight: 15, signal: 'SELL', contrib: -0.42 },
-  { strat: 'STRAT-005', weight: 15, signal: 'BUY',  contrib: 0.94 },
-  { strat: 'STRAT-008', weight: 15, signal: 'BUY',  contrib: 1.12 },
-  { strat: 'Other',     weight: 10, signal: '—',    contrib: 0.21 },
+  { strat: 'STRAT-005', weight: 15, signal: 'BUY', contrib: 0.94 },
+  { strat: 'STRAT-008', weight: 15, signal: 'BUY', contrib: 1.12 },
+  { strat: 'Other', weight: 10, signal: '—', contrib: 0.21 },
 ];
 
 const STRAT_LABELS = STRATEGIES.map(s => s.id);
@@ -327,10 +327,8 @@ export const QR_METRICS = [
   { l: 'Max Drawdown', v: '-12.4 bps', s: 'Peak-to-trough on cum_profit', cls: 'cr' },
   { l: 'Win Rate', v: '56.4%', s: '169 correct / 300 submit=1', cls: 'cg' },
   { l: 'Signal Rate', v: '14.2%', s: '300 submit=1 out of 2147', cls: 'cb' },
-  { l: 'Avg Profit', v: '+0.18 bps', s: 'PnL per submission window', cls: 'cg' },
-  { l: 'Sharpe Ratio', v: '3.12', s: 'Annualised (2340 windows/day)', cls: 'ca' },
-  { l: 'Tearsheet', v: 'PDF', s: 'Download full strategy report', cls: 'cm' },
-  { l: 'Status', v: 'LIVE', v2: '08:42:11', s: 'Strategy worker state', cls: 'bg' }
+  { l: 'Avg PnL/Trade', v: '+0.18 bps', s: 'Mean over submit=1 windows', cls: 'cg' },
+  { l: 'Sharpe (Ann.)', v: '3.12', s: 'mean/std × √2340 (10-s windows)', cls: 'ca' }
 ];
 
 export const DS_SCALARS = [

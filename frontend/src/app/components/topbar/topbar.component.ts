@@ -9,7 +9,9 @@ import { Component, Output, EventEmitter, OnInit, OnDestroy, Input } from '@angu
 })
 export class TopbarComponent implements OnInit, OnDestroy {
   @Input() workspace = 'QR';
+  @Input() user: { username: string; role: string } | null = null;
   @Output() workspaceChange = new EventEmitter<string>();
+  @Output() logout = new EventEmitter<void>();
   
   timeString = '';
   private timer: any;
@@ -33,5 +35,18 @@ export class TopbarComponent implements OnInit, OnDestroy {
   setWorkspace(ws: string) {
     this.workspace = ws;
     this.workspaceChange.emit(ws);
+  }
+
+  onLogout() {
+    this.logout.emit();
+  }
+
+  getInitials(): string {
+    if (!this.user?.username) return '??';
+    const parts = this.user.username.split(/[._-]/);
+    if (parts.length > 1) {
+      return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    }
+    return this.user.username.slice(0, 2).toUpperCase();
   }
 }

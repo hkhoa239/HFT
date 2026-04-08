@@ -57,7 +57,7 @@
 
 .mxgrid { 
   display: grid; 
-  grid-template-columns: 1fr 1fr; 
+  grid-template-columns: repeat(2, 1fr); 
   gap: 6px; 
   height: 100%; 
   overflow-y: auto;

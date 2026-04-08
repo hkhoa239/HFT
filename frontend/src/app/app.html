@@ -1,21 +1,30 @@
-<div class="app">
-  <app-toast></app-toast>
-  <app-topbar [workspace]="activeWorkspace" (workspaceChange)="activeWorkspace = $event"></app-topbar>
-  <app-sidebar [workspace]="activeWorkspace" (workspaceChange)="activeWorkspace = $event"></app-sidebar>
-  <main class="main">
-    
-    <div class="workspace active" *ngIf="activeWorkspace === 'QR'" id="ws-qr">
-      <app-qr-workspace></app-qr-workspace>
-    </div>
+<div class="app-container">
+  <app-login *ngIf="!isLoggedIn()" (loginSuccess)="onLoginSuccess($event)"></app-login>
 
-    <div class="workspace active" *ngIf="activeWorkspace === 'DS'" id="ws-ds">
-      <app-ds-workspace></app-ds-workspace>
-    </div>
+  <div class="app" *ngIf="isLoggedIn()">
+    <app-toast></app-toast>
+    <app-topbar 
+      [workspace]="activeWorkspace" 
+      [user]="currentUser()"
+      (workspaceChange)="activeWorkspace = $event"
+      (logout)="logout()">
+    </app-topbar>
+    <app-sidebar [workspace]="activeWorkspace" (workspaceChange)="activeWorkspace = $event"></app-sidebar>
+    <main class="main">
+      
+      <div class="workspace active" *ngIf="activeWorkspace === 'QR'" id="ws-qr">
+        <app-qr-workspace></app-qr-workspace>
+      </div>
 
-    <div class="workspace active" *ngIf="activeWorkspace === 'PM'" id="ws-pm">
-      <app-pm-workspace></app-pm-workspace>
-    </div>
+      <div class="workspace active" *ngIf="activeWorkspace === 'DS'" id="ws-ds">
+        <app-ds-workspace></app-ds-workspace>
+      </div>
 
-  </main>
-  <app-statusbar></app-statusbar>
+      <div class="workspace active" *ngIf="activeWorkspace === 'PM'" id="ws-pm">
+        <app-pm-workspace></app-pm-workspace>
+      </div>
+
+    </main>
+    <app-statusbar></app-statusbar>
+  </div>
 </div>
