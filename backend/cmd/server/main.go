@@ -37,6 +37,7 @@ func main() {
 	validator.Init()
 
 	r := gin.Default()
+	r.Use(middleware.CORSMiddleware())
 
 	authHandler := handlers.NewAuthHandler(queries, cfg.JWT.Secret, cfg.JWT.ExpireHour)
 	userHandler := handlers.NewUserHandler(queries)

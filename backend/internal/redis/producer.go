@@ -3,8 +3,10 @@ package redis
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"quantalpha/internal/config"
 	"quantalpha/internal/models"
@@ -16,7 +18,7 @@ type Producer struct {
 
 func NewProducer(cfg *config.RedisConfig) (*Producer, error) {
 	client := redis.NewClient(&redis.Options{
-		Addr:     cfg.Host + ":" + itoa(cfg.Port),
+		Addr:     cfg.Host + ":" + fmt.Sprintf("%d", cfg.Port),
 		Password: cfg.Password,
 		DB:       cfg.DB,
 	})
@@ -54,7 +56,7 @@ func (p *Producer) PublishJob(ctx context.Context, job models.JobPayload) error 
 
 func NewJobPayload(taskType, userID, alphaID string, params map[string]interface{}) models.JobPayload {
 	return models.JobPayload{
-		JobID:     generateUUID(),
+		JobID:     uuid.New().String(),
 		TaskType:  taskType,
 		UserID:    userID,
 		AlphaID:   alphaID,
@@ -65,22 +67,4 @@ func NewJobPayload(taskType, userID, alphaID string, params map[string]interface
 
 func (p *Producer) Close() error {
 	return p.client.Close()
-}
-
-func generateUUID() string {
-	return time.Now().Format("20060102150405") + "-" + itoa(int(time.Now().UnixNano()%1000000))
-}
-
-func itoa(i int) string {
-	if i == 0 {
-		return "0"
-	}
-	var buf [20]byte
-	j := len(buf)
-	for i > 0 {
-		j--
-		buf[j] = byte(i%10 + '0')
-		i /= 10
-	}
-	return string(buf[j:])
 }
