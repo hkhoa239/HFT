@@ -2,6 +2,8 @@ import os
 import json
 import time
 import redis
+import signal
+import sys
 from pathlib import Path
 from db import mark_running, mark_completed, mark_failed
 from engine import load_data, compile_signal, run_backtest
@@ -16,6 +18,18 @@ GROUP_NAME = "worker_group"
 CONSUMER_NAME = "worker_1"
 
 r = redis.from_url(REDIS_URL, decode_responses=True)
+
+# Global flag for graceful shutdown
+keep_running = True
+
+def handle_signal(signum, frame):
+    global keep_running
+    print(f"\nSignal {signum} received. Shutting down gracefully...")
+    keep_running = False
+
+# Register signals
+signal.signal(signal.SIGINT, handle_signal)
+signal.signal(signal.SIGTERM, handle_signal)
 
 def init_stream():
     try:
@@ -63,10 +77,10 @@ def main():
     print("Python Worker started...")
     init_stream()
     
-    while True:
+    while keep_running:
         try:
             # Read from stream
-            # Block for 5 seconds
+            # Block for 5 seconds to allow keep_running check
             streams = r.xreadgroup(GROUP_NAME, CONSUMER_NAME, {STREAM_NAME: ">"}, count=1, block=5000)
             
             if not streams:
@@ -84,8 +98,13 @@ def main():
                     r.xack(STREAM_NAME, GROUP_NAME, message_id)
                     
         except Exception as e:
-            print(f"Worker Loop Error: {e}")
-            time.sleep(1)
+            if keep_running:
+                print(f"Worker Loop Error: {e}")
+                time.sleep(1)
+            else:
+                break
+    
+    print("Worker stopped.")
 
 if __name__ == "__main__":
     main()
