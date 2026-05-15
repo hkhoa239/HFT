@@ -38,20 +38,43 @@ def load_data(csv_path: Path) -> pd.DataFrame:
     
     return df.dropna(subset=["time_sec"]).reset_index(drop=True)
 
+DENY_LIST = [
+    "import ", "os.", "subprocess", "eval(", "exec(", "open(", 
+    "__subclasses__", "socket", "sys.", "getattr", "setattr", 
+    "pickle", "marshal", "shutil", "requests", "urllib",
+]
+
+def validate_script(script: str):
+    """Scan script for dangerous patterns."""
+    script_lower = script.lower()
+    for item in DENY_LIST:
+        if item in script_lower:
+            raise ValueError(f"Security violation: dangerous pattern '{item}' detected in script")
+
 def compile_signal(script: str) -> Callable:
     """Safely compile the signal function."""
+    # 1. Validation
+    validate_script(script)
+
+    # 2. Namespace Tightening
     ns = {
         "__builtins__": {
             "abs": abs, "min": min, "max": max, "round": round,
             "int": int, "float": float, "bool": bool, "str": str,
-            "len": len, "range": range, "enumerate": enumerate,
-            "zip": zip, "sum": sum, "sorted": sorted,
+            "len": len, "range": range,
             "True": True, "False": False, "None": None,
         },
         "math": math,
         "np": np,
     }
-    exec(compile(script, "<signal>", "exec"), ns)
+    
+    try:
+        # Compile with NO access to parent scope
+        code = compile(script, "<signal>", "exec")
+        exec(code, ns)
+    except Exception as e:
+        raise ValueError(f"Script compilation failed: {e}")
+
     fn = ns.get("signal")
     if not callable(fn):
         raise ValueError("Script must define `signal(row) -> int`")
