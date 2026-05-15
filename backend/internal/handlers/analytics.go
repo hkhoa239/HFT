@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -18,9 +19,130 @@ func NewAnalyticsHandler(db *database.Queries) *AnalyticsHandler {
 }
 
 func (h *AnalyticsHandler) GetCorrelation(c *gin.Context) {
-	c.JSON(http.StatusOK, models.APIResponse{Success: true, Data: models.CorrelationResponse{
-		Data: []models.CorrelationItem{},
+	// 1. Fetch latest 10 completed backtests with pnl curves
+	query := `
+		WITH LatestBacktests AS (
+			SELECT DISTINCT ON (alpha_id) 
+				alpha_id, metrics, created_at
+			FROM backtest_runs
+			WHERE status = 'completed' AND metrics->'pnl_curve' IS NOT NULL
+			ORDER BY alpha_id, created_at DESC
+			LIMIT 10
+		)
+		SELECT 
+			a.name as alpha_name,
+			lb.metrics->'pnl_curve' as pnl_curve
+		FROM LatestBacktests lb
+		JOIN alphas a ON lb.alpha_id = a.id
+		ORDER BY lb.created_at DESC
+	`
+
+	rows, err := h.db.GetDB().Query(c.Request.Context(), query)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "failed to fetch correlation data"})
+		return
+	}
+	defer rows.Close()
+
+	type alphaData struct {
+		name   string
+		pnl    []float64
+	}
+	var data []alphaData
+	minLength := -1
+
+	for rows.Next() {
+		var name string
+		var rawCurve []map[string]interface{}
+		if err := rows.Scan(&name, &rawCurve); err != nil {
+			continue
+		}
+
+		// Convert cumPnL to step returns
+		var pnl []float64
+		lastVal := 0.0
+		for i, p := range rawCurve {
+			curr, ok := p["cumPnL"].(float64)
+			if !ok {
+				// Try parsing from string if it was stored that way
+				if s, ok := p["cumPnL"].(string); ok {
+					fmt.Sscanf(s, "%f", &curr)
+				}
+			}
+			if i > 0 {
+				pnl = append(pnl, curr-lastVal)
+			}
+			lastVal = curr
+		}
+
+		if len(pnl) > 0 {
+			data = append(data, alphaData{name: name, pnl: pnl})
+			if minLength == -1 || len(pnl) < minLength {
+				minLength = len(pnl)
+			}
+		}
+	}
+
+	if len(data) < 2 || minLength <= 1 {
+		c.JSON(http.StatusOK, models.APIResponse{Success: true, Data: models.CorrelationResponse{
+			Data: []models.CorrelationItem{},
+		}})
+		return
+	}
+
+	// 2. Truncate and Calculate Pearson Matrix
+	labels := make([]string, len(data))
+	for i := range data {
+		labels[i] = data[i].name
+		data[i].pnl = data[i].pnl[:minLength]
+	}
+
+	n := len(data)
+	matrix := make([][]float64, n)
+	for i := 0; i < n; i++ {
+		matrix[i] = make([]float64, n)
+		for j := 0; j < n; j++ {
+			if i == j {
+				matrix[i][j] = 1.0
+				continue
+			}
+			if i > j {
+				matrix[i][j] = matrix[j][i]
+				continue
+			}
+			matrix[i][j] = calculatePearson(data[i].pnl, data[j].pnl)
+		}
+	}
+
+	// But actually the PM Dashboard expects a matrix. 
+	// I'll return both or update CorrelationResponse to include Matrix.
+	c.JSON(http.StatusOK, models.APIResponse{Success: true, Data: map[string]interface{}{
+		"labels": labels,
+		"matrix": matrix,
 	}})
+}
+
+func calculatePearson(x, y []float64) float64 {
+	n := len(x)
+	var sumX, sumY, sumXY, sumX2, sumY2 float64
+	for i := 0; i < n; i++ {
+		sumX += x[i]
+		sumY += y[i]
+		sumXY += x[i] * y[i]
+		sumX2 += x[i] * x[i]
+		sumY2 += y[i] * y[i]
+	}
+
+	valX := float64(n)*sumX2 - sumX*sumX
+	valY := float64(n)*sumY2 - sumY*sumY
+	if valX < 0 { valX = 0 }
+	if valY < 0 { valY = 0 }
+
+	denom := math.Sqrt(valX * valY)
+	if denom == 0 {
+		return 0
+	}
+	return (float64(n)*sumXY - sumX*sumY) / denom
 }
 
 func (h *AnalyticsHandler) GetPerformance(c *gin.Context) {

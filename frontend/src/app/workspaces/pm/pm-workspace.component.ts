@@ -46,7 +46,7 @@ export class PmWorkspaceComponent implements OnInit {
 
   ngOnInit() {
     this.loadPerformanceData();
-    this.stratCorr = this.dataService.getStratCorr();
+    this.loadCorrelationData();
     this.modelsPerf = this.dataService.getModelsPerf();
     this.deployment = this.dataService.getDeployment();
 
@@ -92,6 +92,28 @@ export class PmWorkspaceComponent implements OnInit {
     return curve.map(p => p.cumPnL ?? 0);
   }
 
+  private loadCorrelationData() {
+    this.http.get<any>(`${this.apiUrl}/analytics/correlation`).pipe(take(1)).subscribe({
+      next: (res) => {
+        if (res.success && res.data && res.data.matrix) {
+          this.stratLabels = res.data.labels || [];
+          this.stratCorr = res.data.matrix || [];
+          this.generateHeatmap();
+        } else {
+          this.stratLabels = [];
+          this.stratCorr = [];
+          this.heatmapCells = [];
+        }
+      },
+      error: () => {
+        // Fallback for dev
+        this.stratLabels = ['S1', 'S2', 'S3'];
+        this.stratCorr = this.dataService.getStratCorr();
+        this.generateHeatmap();
+      }
+    });
+  }
+
   filterStrats(query: string) {
     if (!query) {
       this.strategies = [...this.originalStrategies];
@@ -121,6 +143,8 @@ export class PmWorkspaceComponent implements OnInit {
   }
 
   getSparkline(data: number[]): SafeHtml {
+    if (!data || data.length < 2) return this.sanitizer.bypassSecurityTrustHtml('<svg width="70" height="22"></svg>');
+    
     const W = 70, H = 22;
     const mn = Math.min(...data), mx = Math.max(...data);
     const rng = mx - mn || 1;
@@ -148,7 +172,7 @@ export class PmWorkspaceComponent implements OnInit {
     this.heatmapCells = [];
     for (let i = 0; i < n; i++) {
       for (let j = 0; j < n; j++) {
-        const v = this.stratCorr[i][j];
+        const v = (this.stratCorr[i] && this.stratCorr[i][j] !== undefined) ? this.stratCorr[i][j] : 0;
         this.heatmapCells.push({
           row: i, col: j, val: v,
           labelI: this.stratLabels[i],
