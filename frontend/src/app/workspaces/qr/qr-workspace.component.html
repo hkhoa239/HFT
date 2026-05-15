@@ -65,15 +65,20 @@
       <option>(5,3,2)</option>
     </select>
   </div>
-  <button id="run-btn" class="btn btn-run" [class.running]="isSimulating" (click)="runBacktest()" style="margin-left:auto;">
-    <ng-container *ngIf="!isSimulating">&#9654; RUN BACKTEST</ng-container>
-    <ng-container *ngIf="isSimulating">⟳ RUNNING…</ng-container>
+  <button id="run-btn" class="btn btn-run" 
+          [class.running]="isSimulating" 
+          [class.failed]="simStatus === 'Failed'"
+          (click)="runBacktest()" 
+          style="margin-left:auto;">
+    <ng-container *ngIf="!isSimulating && simStatus !== 'Failed'">&#9654; RUN BACKTEST</ng-container>
+    <ng-container *ngIf="!isSimulating && simStatus === 'Failed'">&#9888; RETRY BACKTEST</ng-container>
+    <ng-container *ngIf="isSimulating">⟳ {{simStatus}}</ng-container>
   </button>
   <div id="sim-prog" *ngIf="isSimulating" style="display:flex;align-items:center;gap:10px;margin-right:10px;flex:1;">
     <div class="prog-t">
       <div class="prog-f" [style.width.%]="simProgress"></div>
     </div>
-    <span id="sim-eta" style="font-size:9px;color:var(--text-muted);min-width:50px;">{{simEta}}</span>
+    <span id="sim-eta" style="font-size:9px;color:var(--text-muted);min-width:100px;text-align:right;">{{simStatus}} ({{simProgress}}%)</span>
   </div>
 </div>
 
@@ -82,8 +87,8 @@
   <div class="ph">
     <span class="pt">&#8767; Cumulative PnL — Alpha Signal Backtest (bps)</span>
     <div class="pa">
-      <span class="badge bg">+33.7 bps</span>
-      <span class="badge bb">Win Rate 52.0%</span>
+      <span class="badge" [class.bg]="pnlSummary.total.startsWith('+')" [class.cr]="pnlSummary.total.startsWith('-')">{{pnlSummary.total}}</span>
+      <span class="badge bb">{{pnlSummary.wr}}</span>
     </div>
   </div>
   <div class="pb" style="padding:4px 10px;">

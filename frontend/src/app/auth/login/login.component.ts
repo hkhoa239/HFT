@@ -1,6 +1,7 @@
-import { Component, signal, output } from '@angular/core';
+import { Component, signal, output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { HttpClient } from '@angular/common/http';
 
 @Component({
   selector: 'app-login',
@@ -176,32 +177,41 @@ export class LoginComponent {
   
   loginSuccess = output<{ username: string; role: string }>();
 
+  private http = inject(HttpClient);
+  private apiUrl = 'http://localhost:8080/auth/login';
+
   onSubmit(): void {
     if (!this.username || !this.password) return;
     
     this.loading.set(true);
     this.error.set(null);
 
-    // Mock delay
-    setTimeout(() => {
-      this.loading.set(false);
-      
-      // Basic mock check
-      const validAdmin = this.username === 'admin' && this.password === 'admin';
-      const validDS = this.username.startsWith('ds') && this.password === 'ds';
-      const validQR = this.username.startsWith('qr') && this.password === 'qr';
-      const validPM = this.username.startsWith('pm') && this.password === 'pm';
-
-      if (validAdmin || validDS || validQR || validPM) {
-        let role = 'ADMIN';
-        if (validDS) role = 'DS';
-        if (validQR) role = 'QR';
-        if (validPM) role = 'PM';
-
-        this.loginSuccess.emit({ username: this.username, role });
-      } else {
-        this.error.set('Invalid credentials. Hint: use admin/admin or ds/ds');
+    this.http.post<any>(this.apiUrl, {
+      username: this.username,
+      password: this.password
+    }).subscribe({
+      next: (res) => {
+        this.loading.set(false);
+        if (res.success && res.data) {
+          const { token, user } = res.data;
+          
+          // Safe mapping and persistence
+          const safeRole = (user?.role || 'qr').toUpperCase();
+          const userData = { username: user?.username || 'unknown', role: safeRole };
+          
+          localStorage.setItem('auth_token', token);
+          localStorage.setItem('auth_user', JSON.stringify(userData));
+          
+          this.loading.set(false);
+          this.loginSuccess.emit(userData);
+        } else {
+          this.error.set(res.error || 'Authentication failed');
+        }
+      },
+      error: (err) => {
+        this.loading.set(false);
+        this.error.set(err.error?.error || 'Server unavailable or connection error');
       }
-    }, 1200);
+    });
   }
 }

@@ -31,17 +31,35 @@ export class App {
   isLoggedIn = signal(false);
   currentUser = signal<{ username: string; role: string } | null>(null);
 
+  constructor() {
+    this.hydrateAuth();
+  }
+
+  private hydrateAuth(): void {
+    try {
+      const token = localStorage.getItem('auth_token');
+      const userJson = localStorage.getItem('auth_user');
+      if (token && userJson) {
+        const user = JSON.parse(userJson);
+        this.currentUser.set(user);
+        this.isLoggedIn.set(true);
+        this.activeWorkspace = user.role;
+      }
+    } catch (e) {
+      console.error('Failed to hydrate auth state', e);
+      this.logout();
+    }
+  }
+
   onLoginSuccess(data: { username: string; role: string }): void {
     this.currentUser.set(data);
     this.isLoggedIn.set(true);
-    
-    // Set active workspace based on role if needed
-    if (data.role === 'DS') this.activeWorkspace = 'DS';
-    if (data.role === 'PM') this.activeWorkspace = 'PM';
-    if (data.role === 'QR') this.activeWorkspace = 'QR';
+    this.activeWorkspace = data.role;
   }
 
   logout(): void {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
     this.isLoggedIn.set(false);
     this.currentUser.set(null);
   }
