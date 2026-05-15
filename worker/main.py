@@ -73,9 +73,46 @@ def process_job(job_data: dict):
         print(f"Job {job_id} failed: {error_msg}")
         mark_failed(job_id, error_msg)
 
+def recover_pending_jobs():
+    """Recover jobs that were started but not finished (PEL)."""
+    print("Checking for pending jobs in PEL...")
+    try:
+        # Read pending messages for this consumer
+        # ID '0' means read all messages in the PEL for this consumer
+        streams = r.xreadgroup(GROUP_NAME, CONSUMER_NAME, {STREAM_NAME: "0"}, count=10)
+        
+        if not streams:
+            print("No pending jobs found.")
+            return
+
+        for stream_name, messages in streams:
+            for message_id, payload in messages:
+                # Check idle time (only recover if idle > 30s)
+                # Redis xpending gives more detail but xreadgroup '0' is simpler for MVP
+                # We'll just process them but keep an eye on retry count
+                raw_data = payload.get("payload")
+                if raw_data:
+                    job_data = json.loads(raw_data)
+                    job_id = job_data.get("job_id")
+                    
+                    # Prevent infinite retry loops
+                    # We can store retry count in Redis or payload
+                    # For MVP, we'll just log and try once
+                    print(f"Reclaiming pending job: {job_id} (ID: {message_id})")
+                    process_job(job_data)
+                    
+                # ACK message
+                r.xack(STREAM_NAME, GROUP_NAME, message_id)
+                
+    except Exception as e:
+        print(f"PEL Recovery Error: {e}")
+
 def main():
     print("Python Worker started...")
     init_stream()
+    
+    # Check for pending jobs before entering main loop
+    recover_pending_jobs()
     
     while keep_running:
         try:
