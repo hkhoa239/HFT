@@ -48,7 +48,7 @@ type MinIOConfig struct {
 }
 
 func Load() *Config {
-	return &Config{
+	cfg := &Config{
 		Server: ServerConfig{
 			Port: getEnv("SERVER_PORT", "8080"),
 			Mode: getEnv("GIN_MODE", "debug"),
@@ -78,6 +78,27 @@ func Load() *Config {
 			Bucket:    getEnv("MINIO_BUCKET", "quant-alpha"),
 			UseSSL:    getEnv("MINIO_USE_SSL", "false") == "true",
 		},
+	}
+
+	cfg.Validate()
+	return cfg
+}
+
+func (c *Config) Validate() {
+	// Security: Check for default secret in non-debug mode or if specifically warned
+	defaultSecret := "quantalpha-secret-key-change-in-production"
+	if c.JWT.Secret == defaultSecret && c.Server.Mode != "debug" {
+		println("CRITICAL SECURITY WARNING: JWT_SECRET is using the default value in non-debug mode!")
+	}
+
+	if c.JWT.Secret == "" {
+		println("CRITICAL ERROR: JWT_SECRET is empty!")
+		os.Exit(1)
+	}
+
+	// Basic validation of critical fields
+	if c.Database.Password == "postgres" && c.Server.Mode == "release" {
+		println("WARNING: Using default DB password in release mode.")
 	}
 }
 
