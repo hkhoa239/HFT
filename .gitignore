@@ -16,4 +16,11 @@ legacy/
 # ── Frontend ─────────────────────────────────────────────────
 frontend/node_modules/
 frontend/dist/
-frontend/.angular/
+frontend/.angular/
+
+# Binaries & Env
+*.exe
+backend/server.exe
+.env
+.env.local
+
