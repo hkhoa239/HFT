@@ -1,7 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"quantalpha/internal/config"
@@ -48,6 +54,10 @@ func main() {
 	analyticsHandler := handlers.NewAnalyticsHandler(queries)
 	adminHandler := handlers.NewAdminHandler(queries)
 
+	systemHandler := handlers.NewSystemHandler(queries, prod)
+
+	r.GET("/health", systemHandler.Health)
+	r.GET("/ready", systemHandler.Ready)
 	r.POST("/auth/login", authHandler.Login)
 
 	private := r.Group("")
@@ -103,8 +113,29 @@ func main() {
 		}
 	}
 
-	log.Printf("Server starting on port %s", cfg.Server.Port)
-	if err := r.Run(":" + cfg.Server.Port); err != nil {
-		log.Fatalf("failed to start server: %v", err)
+	srv := &http.Server{
+		Addr:    ":" + cfg.Server.Port,
+		Handler: r,
 	}
+
+	go func() {
+		log.Printf("Server starting on port %s", cfg.Server.Port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("failed to start server: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatal("Server forced to shutdown:", err)
+	}
+
+	log.Println("Server exiting")
 }
+
