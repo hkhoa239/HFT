@@ -21,6 +21,18 @@ frontend/.angular/
 # Binaries & Env
 *.exe
 backend/server.exe
+backend/server
 .env
 .env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+env/
+venv/
+*.csv
+!data/market_data_sample.csv
 

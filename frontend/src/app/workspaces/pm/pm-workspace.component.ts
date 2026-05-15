@@ -6,6 +6,7 @@ import { ChartConfiguration } from 'chart.js';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { HttpClient } from '@angular/common/http';
 import { take } from 'rxjs/operators';
+import { APP_CONFIG } from '../../app.constants';
 
 @Component({
   selector: 'app-pm-workspace',
@@ -24,7 +25,7 @@ export class PmWorkspaceComponent implements OnInit {
   heatmapCells: any[] = [];
   hoveredCell: any = null;
   sparklines: { [key: string]: SafeHtml } = {};
-
+ 
   // Comparison
   modelsPerf: any[] = [];
   
@@ -33,10 +34,10 @@ export class PmWorkspaceComponent implements OnInit {
   
   // Depth Chart
   depthConfig?: ChartConfiguration;
-
+ 
   private originalStrategies: any[] = [];
-
-  private apiUrl = 'http://localhost:8080/api';
+ 
+  private apiUrl = APP_CONFIG.apiUrl;
 
   constructor(
     private http: HttpClient,

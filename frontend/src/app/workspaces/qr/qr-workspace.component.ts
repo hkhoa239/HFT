@@ -8,6 +8,7 @@ import { NotificationService } from '../../services/notification.service';
 import { ChartWrapperComponent } from '../../shared/components/chart-wrapper.component';
 import { EditorWrapperComponent } from '../../shared/components/editor-wrapper.component';
 import { ChartConfiguration } from 'chart.js';
+import { APP_CONFIG } from '../../app.constants';
 
 @Component({
   selector: 'app-qr-workspace',
@@ -20,7 +21,7 @@ export class QrWorkspaceComponent implements OnInit, OnDestroy {
   qrCode = '';
   pnlConfig?: ChartConfiguration;
   private pollSub?: Subscription;
-  private apiUrl = 'http://localhost:8080';
+  private apiUrl = APP_CONFIG.apiUrl;
   
   // Variable Library
   variables: any = {};

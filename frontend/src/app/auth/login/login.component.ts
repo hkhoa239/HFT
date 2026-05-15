@@ -2,6 +2,7 @@ import { Component, signal, output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
+import { APP_CONFIG } from '../../app.constants';
 
 @Component({
   selector: 'app-login',
@@ -178,7 +179,7 @@ export class LoginComponent {
   loginSuccess = output<{ username: string; role: string }>();
 
   private http = inject(HttpClient);
-  private apiUrl = 'http://localhost:8080/auth/login';
+  private apiUrl = `${APP_CONFIG.apiUrl}/auth/login`;
 
   onSubmit(): void {
     if (!this.username || !this.password) return;
