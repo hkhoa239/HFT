@@ -53,6 +53,11 @@ func (h *ModelHandler) TrainModel(c *gin.Context) {
 		"params":     req.Params,
 	})
 	payload.JobID = model.ID.String()
+	if h.prod == nil {
+		c.JSON(http.StatusServiceUnavailable, models.APIResponse{Success: false, Error: "training engine is currently unavailable (redis offline)"})
+		return
+	}
+
 	if err := h.prod.PublishJob(c.Request.Context(), payload); err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "failed to queue training job"})
 		return

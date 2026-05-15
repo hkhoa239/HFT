@@ -56,6 +56,11 @@ func (h *BacktestHandler) RunBacktest(c *gin.Context) {
 	})
 	payload.JobID = backtest.ID.String()
 
+	if h.prod == nil {
+		c.JSON(http.StatusServiceUnavailable, models.APIResponse{Success: false, Error: "backtest engine is currently unavailable (redis offline)"})
+		return
+	}
+
 	if err := h.prod.PublishJob(c.Request.Context(), payload); err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "failed to queue job"})
 		return
