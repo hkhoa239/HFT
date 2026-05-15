@@ -17,6 +17,10 @@ func NewQueries(db *pgxpool.Pool) *Queries {
 	return &Queries{db: db}
 }
 
+func (q *Queries) GetDB() *pgxpool.Pool {
+	return q.db
+}
+
 func (q *Queries) CreateUser(ctx context.Context, username, passwordHash string, role models.UserRole, fullName string) (*models.User, error) {
 	user := &models.User{
 		ID:       uuid.New(),

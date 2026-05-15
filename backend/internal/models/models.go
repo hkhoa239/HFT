@@ -198,10 +198,15 @@ type CorrelationResponse struct {
 }
 
 type PerformanceItem struct {
-	AlphaID     uuid.UUID `json:"alpha_id"`
-	TotalReturn float64   `json:"total_return"`
-	Sharpe      float64   `json:"sharpe"`
-	MaxDrawdown float64   `json:"max_drawdown"`
+	AlphaID     uuid.UUID              `json:"alpha_id"`
+	AlphaName   string                 `json:"alpha_name"`
+	AuthorName  string                 `json:"author_name"`
+	TotalReturn float64                `json:"total_return"`
+	Sharpe      float64                `json:"sharpe"`
+	WinRate     float64                `json:"win_rate"`
+	MaxDrawdown float64                `json:"max_drawdown"`
+	PnLCurve    []map[string]interface{} `json:"pnl_curve,omitempty"`
+	Status      string                 `json:"status"`
 }
 
 type PerformanceResponse struct {

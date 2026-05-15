@@ -4,6 +4,8 @@ import { DataService, Strategy } from '../../services/data.service';
 import { ChartWrapperComponent } from '../../shared/components/chart-wrapper.component';
 import { ChartConfiguration } from 'chart.js';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { HttpClient } from '@angular/common/http';
+import { take } from 'rxjs/operators';
 
 @Component({
   selector: 'app-pm-workspace',
@@ -34,22 +36,60 @@ export class PmWorkspaceComponent implements OnInit {
 
   private originalStrategies: any[] = [];
 
+  private apiUrl = 'http://localhost:8080/api';
+
   constructor(
+    private http: HttpClient,
     public dataService: DataService,
     public sanitizer: DomSanitizer
   ) { }
 
   ngOnInit() {
-    this.strategies = this.dataService.getStrategies();
-    this.originalStrategies = [...this.strategies];
+    this.loadPerformanceData();
     this.stratCorr = this.dataService.getStratCorr();
-    this.stratLabels = this.strategies.map(s => s.id);
     this.modelsPerf = this.dataService.getModelsPerf();
     this.deployment = this.dataService.getDeployment();
 
-    this.generateHeatmap();
     this.initDepthChart();
-    this.generateSparklines();
+  }
+
+  private loadPerformanceData() {
+    this.http.get<any>(`${this.apiUrl}/analytics/performance`).pipe(take(1)).subscribe({
+      next: (res) => {
+        if (res.success && res.data) {
+          this.strategies = res.data.map((item: any) => ({
+            id: item.alpha_name || 'Unknown',
+            author: item.author_name || 'System',
+            model: 'XGB-Alpha', // Default placeholder for now
+            weights: '0.42, 0.58',
+            lb: 60,
+            totalPnL: item.total_return ?? 0,
+            sharpe: item.sharpe ?? 0,
+            winRate: item.win_rate ?? 0,
+            maxDD: Math.abs(item.max_drawdown ?? 0),
+            status: item.status === 'completed' ? 'Active' : 'Archived',
+            rollPnL: this.extractPnLArray(item.pnl_curve)
+          }));
+          this.originalStrategies = [...this.strategies];
+          this.stratLabels = this.strategies.map(s => s.id);
+          this.generateHeatmap();
+          this.generateSparklines();
+        }
+      },
+      error: () => {
+        // Fallback to mock if API fails for local dev resilience
+        this.strategies = this.dataService.getStrategies();
+        this.originalStrategies = [...this.strategies];
+        this.stratLabels = this.strategies.map(s => s.id);
+        this.generateHeatmap();
+        this.generateSparklines();
+      }
+    });
+  }
+
+  private extractPnLArray(curve: any[] | undefined): number[] {
+    if (!curve || curve.length === 0) return [0, 0, 0];
+    return curve.map(p => p.cumPnL ?? 0);
   }
 
   filterStrats(query: string) {
