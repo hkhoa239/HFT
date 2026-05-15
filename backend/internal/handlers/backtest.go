@@ -31,15 +31,15 @@ func (h *BacktestHandler) RunBacktest(c *gin.Context) {
 		return
 	}
 
-	alphaID, _ := uuid.Parse(req.AlphaID)
-	_, err := h.db.GetAlphaByID(c.Request.Context(), alphaID)
+	alphaUUID, _ := uuid.Parse(req.AlphaID)
+	alpha, err := h.db.GetAlphaByID(c.Request.Context(), alphaUUID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, models.APIResponse{Success: false, Error: "alpha not found"})
 		return
 	}
 
 	userID, _ := c.Get("user_id")
-	backtest, err := h.db.CreateBacktestRun(c.Request.Context(), alphaID, userID.(uuid.UUID), map[string]interface{}{
+	backtest, err := h.db.CreateBacktestRun(c.Request.Context(), alphaUUID, userID.(uuid.UUID), map[string]interface{}{
 		"start":   req.Params.Start,
 		"end":     req.Params.End,
 		"capital": req.Params.Capital,
@@ -49,12 +49,13 @@ func (h *BacktestHandler) RunBacktest(c *gin.Context) {
 		return
 	}
 
-	payload := redis.NewJobPayload("backtest", userID.(uuid.UUID).String(), alphaID.String(), map[string]interface{}{
+	payload := redis.NewJobPayload("backtest", userID.(uuid.UUID).String(), req.AlphaID, alpha.CodeContent, map[string]interface{}{
 		"start":   req.Params.Start,
 		"end":     req.Params.End,
 		"capital": req.Params.Capital,
 	})
 	payload.JobID = backtest.ID.String()
+
 	if err := h.prod.PublishJob(c.Request.Context(), payload); err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "failed to queue job"})
 		return

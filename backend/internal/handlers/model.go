@@ -47,7 +47,7 @@ func (h *ModelHandler) TrainModel(c *gin.Context) {
 		return
 	}
 
-	payload := redis.NewJobPayload("train", userID.(uuid.UUID).String(), "", map[string]interface{}{
+	payload := redis.NewJobPayload("train", userID.(uuid.UUID).String(), "", "", map[string]interface{}{
 		"model_name": req.Name,
 		"version":    req.Version,
 		"params":     req.Params,

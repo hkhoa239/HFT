@@ -37,6 +37,7 @@ func (p *Producer) PublishJob(ctx context.Context, job models.JobPayload) error 
 		"task_type":  job.TaskType,
 		"user_id":    job.UserID,
 		"alpha_id":   job.AlphaID,
+		"script":     job.Script,
 		"params":     job.Params,
 		"created_at": job.CreatedAt,
 	}
@@ -54,12 +55,13 @@ func (p *Producer) PublishJob(ctx context.Context, job models.JobPayload) error 
 	}).Err()
 }
 
-func NewJobPayload(taskType, userID, alphaID string, params map[string]interface{}) models.JobPayload {
+func NewJobPayload(taskType, userID, alphaID, script string, params map[string]interface{}) models.JobPayload {
 	return models.JobPayload{
 		JobID:     uuid.New().String(),
 		TaskType:  taskType,
 		UserID:    userID,
 		AlphaID:   alphaID,
+		Script:    script,
 		Params:    params,
 		CreatedAt: time.Now().UTC().Format(time.RFC3339),
 	}

@@ -228,6 +228,7 @@ type JobPayload struct {
 	TaskType  string                 `json:"task_type"`
 	UserID    string                 `json:"user_id"`
 	AlphaID   string                 `json:"alpha_id,omitempty"`
+	Script    string                 `json:"script,omitempty"`
 	Params    map[string]interface{} `json:"params"`
 	CreatedAt string                 `json:"created_at"`
 }
