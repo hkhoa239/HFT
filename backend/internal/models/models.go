@@ -13,6 +13,7 @@ const (
 	RoleQR    UserRole = "qr"
 	RolePM    UserRole = "pm"
 	RoleDS    UserRole = "ds"
+	RoleViewer UserRole = "viewer"
 )
 
 type JobStatus string
@@ -65,13 +66,13 @@ type CreateUserRequest struct {
 	Username string   `json:"username" validate:"required,min=3,max=50"`
 	Password string   `json:"password" validate:"required,min=6"`
 	FullName string   `json:"full_name" validate:"max=100"`
-	Role     UserRole `json:"role" validate:"required,oneof=admin qr pm ds"`
+	Role     UserRole `json:"role" validate:"required,oneof=admin qr pm ds viewer"`
 }
 
 type UpdateUserRequest struct {
 	Username string   `json:"username" validate:"min=3,max=50"`
 	FullName string   `json:"full_name" validate:"max=100"`
-	Role     UserRole `json:"role" validate:"oneof=admin qr pm ds"`
+	Role     UserRole `json:"role" validate:"oneof=admin qr pm ds viewer"`
 }
 
 type LoginRequest struct {

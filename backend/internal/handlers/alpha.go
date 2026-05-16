@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -19,9 +20,21 @@ func NewAlphaHandler(db *database.Queries) *AlphaHandler {
 }
 
 func (h *AlphaHandler) ListMyAlphas(c *gin.Context) {
-	userID, _ := c.Get("user_id")
-	alphas, err := h.db.ListAlphasByAuthor(c.Request.Context(), userID.(uuid.UUID))
+	val, exists := c.Get("user_id")
+	if !exists || val == nil {
+		log.Printf("user_id not found in context")
+		c.JSON(http.StatusUnauthorized, models.APIResponse{Success: false, Error: "unauthorized"})
+		return
+	}
+	userID, ok := val.(uuid.UUID)
+	if !ok {
+		log.Printf("user_id in context is not uuid.UUID: %T", val)
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "invalid user session"})
+		return
+	}
+	alphas, err := h.db.ListAlphasByAuthor(c.Request.Context(), userID)
 	if err != nil {
+		log.Printf("error listing alphas for user %v: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "failed to list alphas"})
 		return
 	}
@@ -29,8 +42,17 @@ func (h *AlphaHandler) ListMyAlphas(c *gin.Context) {
 }
 
 func (h *AlphaHandler) ListMySubmittedAlphas(c *gin.Context) {
-	userID, _ := c.Get("user_id")
-	alphas, err := h.db.ListAlphasByAuthor(c.Request.Context(), userID.(uuid.UUID))
+	val, exists := c.Get("user_id")
+	if !exists || val == nil {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{Success: false, Error: "unauthorized"})
+		return
+	}
+	userID, ok := val.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "invalid session"})
+		return
+	}
+	alphas, err := h.db.ListAlphasByAuthor(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "failed to list alphas"})
 		return
@@ -54,8 +76,13 @@ func (h *AlphaHandler) CreateAlpha(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, models.APIResponse{Success: false, Error: validator.GetFirstError(errs)})
 		return
 	}
-	userID, _ := c.Get("user_id")
-	alpha, err := h.db.CreateAlpha(c.Request.Context(), userID.(uuid.UUID), req.Name, req.Description, req.CodeContent)
+	val, _ := c.Get("user_id")
+	userID, ok := val.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "invalid session"})
+		return
+	}
+	alpha, err := h.db.CreateAlpha(c.Request.Context(), userID, req.Name, req.Description, req.CodeContent)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "failed to create alpha"})
 		return
@@ -81,9 +108,14 @@ func (h *AlphaHandler) UpdateAlpha(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, models.APIResponse{Success: false, Error: validator.GetFirstError(errs)})
 		return
 	}
-	userID, _ := c.Get("user_id")
+	val, _ := c.Get("user_id")
+	userID, ok := val.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "invalid session"})
+		return
+	}
 	alpha, err := h.db.GetAlphaByID(c.Request.Context(), id)
-	if err != nil || alpha.AuthorID != userID.(uuid.UUID) {
+	if err != nil || alpha.AuthorID != userID {
 		c.JSON(http.StatusForbidden, models.APIResponse{Success: false, Error: "not authorized"})
 		return
 	}
@@ -104,9 +136,14 @@ func (h *AlphaHandler) SubmitAlpha(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, models.APIResponse{Success: false, Error: "invalid alpha ID"})
 		return
 	}
-	userID, _ := c.Get("user_id")
+	val, _ := c.Get("user_id")
+	userID, ok := val.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "invalid session"})
+		return
+	}
 	alpha, err := h.db.GetAlphaByID(c.Request.Context(), id)
-	if err != nil || alpha.AuthorID != userID.(uuid.UUID) {
+	if err != nil || alpha.AuthorID != userID {
 		c.JSON(http.StatusForbidden, models.APIResponse{Success: false, Error: "not authorized"})
 		return
 	}
@@ -127,9 +164,14 @@ func (h *AlphaHandler) DeleteAlpha(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, models.APIResponse{Success: false, Error: "invalid alpha ID"})
 		return
 	}
-	userID, _ := c.Get("user_id")
+	val, _ := c.Get("user_id")
+	userID, ok := val.(uuid.UUID)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "invalid session"})
+		return
+	}
 	alpha, err := h.db.GetAlphaByID(c.Request.Context(), id)
-	if err != nil || alpha.AuthorID != userID.(uuid.UUID) {
+	if err != nil || alpha.AuthorID != userID {
 		c.JSON(http.StatusForbidden, models.APIResponse{Success: false, Error: "not authorized"})
 		return
 	}

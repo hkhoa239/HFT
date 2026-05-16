@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.angular/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+pnpm-debug.log
+.editorconfig
+.vscode/
+Dockerfile
+docker-compose.yml

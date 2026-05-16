@@ -245,3 +245,127 @@ def alpha_signal(t, ask1, bq1, bq2, bq3, aq1, aq2, aq3):
 `;
 
 export const ROLL_WINDOWS = Array.from({ length: 60 }, (_, i) => `T${i + 1}`);
+
+export const DS_CODE = `# HFT Rolling-Window Classifier
+# Train: last 30 min (1800 seconds)  Pred: next 10 s
+# Features: 64 (30 rise_ratio + 34 OBI/depth)
+# Label:  0 = price DOWN, 1 = price UP in pred_sec
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
+from sklearn.ensemble import GradientBoostingClassifier, AdaBoostClassifier
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+from sklearn import metrics
+import numpy as np
+
+# Rolling window parameters
+latest_sec = 60 * 30  # 30-minute training window
+pred_sec   = 10       # 10-second prediction horizon
+
+# Load pre-processed features
+data = pd.read_csv('./data/VN30F2112.csv')
+# Columns: datetime, tickersymbol, bid_price, bid_depth, ask_price, ask_depth
+# bid_depth / ask_depth = level index (1, 2, 3) — quantities are synthetic
+
+models = {
+    'RandomForest': RandomForestClassifier(
+        n_estimators=10, max_depth=10,
+        criterion='entropy', random_state=0),
+    'ExtraTrees': ExtraTreesClassifier(
+        n_estimators=10, max_depth=10,
+        criterion='entropy', random_state=0),
+    'GradBoost': GradientBoostingClassifier(
+        n_estimators=10, max_depth=10, random_state=0),
+    'AdaBoost': AdaBoostClassifier(
+        base_estimator=DecisionTreeClassifier(), random_state=0),
+}
+
+results = {}
+for i in range(0, 9000 - latest_sec - 600, pred_sec):
+    X_train = data.iloc[i:i+latest_sec, 1:65]
+    y_train = data.iloc[i:i+latest_sec, 0]
+    X_test  = data.iloc[i+latest_sec:i+latest_sec+pred_sec, 1:65]
+    y_test  = data.iloc[i+latest_sec:i+latest_sec+pred_sec, 0]
+
+    for name, model in models.items():
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        acc = metrics.accuracy_score(y_test, y_pred)
+        f1  = metrics.f1_score(y_test, y_pred)
+        results.setdefault(name, []).append({'acc': acc, 'f1': f1})
+
+    print(f"Window {i//pred_sec}: RF_acc={results['RandomForest'][-1]['acc']:.4f}")`;
+
+export const DS_ANALY_CODE = `# ── Data Analysis & Factor Generation ────────────────────────
+# Compute order-book signals from Level-3 data (VN30F2112)
+# Results will be published to the QR Variable Library.
+
+import numpy as np
+import pandas as pd
+
+# ── Load ────────────────────────────────────────────────────
+df = pd.read_csv('VN30F2112_ob3.csv', parse_dates=['timestamp'])
+df.set_index('timestamp', inplace=True)
+
+# ── Mid Price & Spread ──────────────────────────────────────
+df['mid']    = (df['bid1'] + df['ask1']) / 2
+df['spread'] = df['ask1'] - df['bid1']
+
+# ── Order Book Imbalance (OBI) variants ─────────────────────
+def obi(df, w1=1, w2=1, w3=1):
+    wb = w1*df['bid_qty1'] + w2*df['bid_qty2'] + w3*df['bid_qty3']
+    wa = w1*df['ask_qty1'] + w2*df['ask_qty2'] + w3*df['ask_qty3']
+    return (wb - wa) / (wb + wa + 1e-9)
+
+df['OBI_111'] = obi(df, 1, 1, 1)
+df['OBI_910'] = obi(df, 9, 1, 0)
+df['OBI_532'] = obi(df, 5, 3, 2)
+
+# ── Rise Ratio ──────────────────────────────────────────────
+diff = df['mid'].diff()
+for w in [10, 30, 60]:
+    df[f'rise_{w}s'] = diff.gt(0).rolling(w).mean()
+
+# ── Target Label: UP / DOWN in next 10 seconds ──────────────
+df['label'] = (df['mid'].shift(-10) > df['mid']).astype(int)
+
+# ── Descriptive Stats ───────────────────────────────────────
+print(df[['OBI_111','OBI_910','spread','rise_30s','label']].describe())
+print(f"\\nUP rate: {df['label'].mean():.2%}")
+print(f"Spread  mean: {df['spread'].mean():.4f}")
+print(f"OBI_111 std : {df['OBI_111'].std():.4f}")
+
+# ── Publish to QR ───────────────────────────────────────────
+factors = df[['OBI_111', 'OBI_910', 'OBI_532', 'spread',
+              'rise_10s', 'rise_30s', 'rise_60s']]
+# qr_client.publish(factors, dataset='VN30F2112', version='v2')
+print("\\n✓ Factors computed — click 'Publish to QR' to send.")`;
+
+export const DS_GEN_CODE = `# ── Data Generator ──────────────────────────────────────────
+# Write a script that produces a 1-D series (array / pd.Series).
+# Set DATASET_NAME + DATASET_TYPE, then click ▶ Run.
+# The dataset is registered in the table; click its name to preview.
+
+import pandas as pd
+import numpy as np
+
+df = pd.read_csv('VN30F2112_ob3.csv', parse_dates=['timestamp'])
+
+# ── Example A: OBI from Order Book ──────────────────────────
+def compute_obi(df, w1=5, w2=3, w3=2):
+    wb = w1*df['bid_qty1'] + w2*df['bid_qty2'] + w3*df['bid_qty3']
+    wa = w1*df['ask_qty1'] + w2*df['ask_qty2'] + w3*df['ask_qty3']
+    return (wb - wa) / (wb + wa + 1e-9)
+
+result = compute_obi(df)
+
+# ── Example B: SVM output (from trained model) ───────────────
+# from sklearn.svm import SVC
+# import joblib
+# model = joblib.load('/registry/models/svm_hft_ob3_v1.pkl')
+# result = model.predict_proba(X_test)[:, 1]
+
+# ── Register ─────────────────────────────────────────────────
+DATASET_NAME = 'OBI_532_v2'   # ← shown in registry table
+DATASET_TYPE = 'OBI Factor'   # ← OBI Factor / Model Output / Rise Ratio / Depth
+
+print(f"Generated {len(result)} rows for '{DATASET_NAME}'")`;

@@ -119,7 +119,9 @@ func (q *Queries) UpdateUser(ctx context.Context, id uuid.UUID, username, fullNa
 
 	query := `
 		UPDATE users
-		SET username = COALESCE(NULLIF($2, ''), full_name = COALESCE(NULLIF($3, '')), role = $4
+		SET username = COALESCE(NULLIF($2, ''), username), 
+		    full_name = COALESCE(NULLIF($3, ''), full_name), 
+		    role = $4
 		WHERE id = $1 AND deleted_at IS NULL
 		RETURNING id, username, role, full_name, created_at, updated_at
 	`
@@ -219,7 +221,10 @@ func (q *Queries) UpdateFactor(ctx context.Context, id uuid.UUID, name, descript
 
 	query := `
 		UPDATE factors
-		SET name = COALESCE(NULLIF($2, ''), description = COALESCE(NULLIF($3, '')), data_path = COALESCE(NULLIF($4, '')), frequency = COALESCE(NULLIF($5, ''))
+		SET name = COALESCE(NULLIF($2, ''), name), 
+		    description = COALESCE(NULLIF($3, ''), description), 
+		    data_path = COALESCE(NULLIF($4, ''), data_path), 
+		    frequency = COALESCE(NULLIF($5, ''), frequency)
 		WHERE id = $1 AND deleted_at IS NULL
 		RETURNING id, name, description, data_path, frequency, created_by, created_at, updated_at
 	`
@@ -273,7 +278,7 @@ func (q *Queries) GetAlphaByID(ctx context.Context, id uuid.UUID) (*models.Alpha
 	var alpha models.Alpha
 
 	query := `
-		SELECT id, author_id, name, description, code_content, status, created_at, updated_at
+		SELECT id, author_id, name, COALESCE(description, ''), code_content, status, created_at, updated_at
 		FROM alphas
 		WHERE id = $1 AND deleted_at IS NULL
 	`
@@ -290,7 +295,7 @@ func (q *Queries) GetAlphaByID(ctx context.Context, id uuid.UUID) (*models.Alpha
 
 func (q *Queries) ListAlphasByAuthor(ctx context.Context, authorID uuid.UUID) ([]models.Alpha, error) {
 	query := `
-		SELECT id, author_id, name, description, code_content, status, created_at, updated_at
+		SELECT id, author_id, name, COALESCE(description, ''), code_content, status, created_at, updated_at
 		FROM alphas
 		WHERE author_id = $1 AND deleted_at IS NULL
 		ORDER BY created_at DESC
@@ -316,7 +321,7 @@ func (q *Queries) ListAlphasByAuthor(ctx context.Context, authorID uuid.UUID) ([
 
 func (q *Queries) ListSubmittedAlphas(ctx context.Context) ([]models.Alpha, error) {
 	query := `
-		SELECT id, author_id, name, description, code_content, status, created_at, updated_at
+		SELECT id, author_id, name, COALESCE(description, ''), code_content, status, created_at, updated_at
 		FROM alphas
 		WHERE status = 'submitted' AND deleted_at IS NULL
 		ORDER BY updated_at DESC
@@ -345,7 +350,9 @@ func (q *Queries) UpdateAlpha(ctx context.Context, id uuid.UUID, name, descripti
 
 	query := `
 		UPDATE alphas
-		SET name = COALESCE(NULLIF($2, '')), description = COALESCE(NULLIF($3, '')), code_content = COALESCE(NULLIF($4, ''))
+		SET name = COALESCE(NULLIF($2, ''), name), 
+		    description = COALESCE(NULLIF($3, ''), description), 
+		    code_content = COALESCE(NULLIF($4, ''), code_content)
 		WHERE id = $1 AND deleted_at IS NULL
 		RETURNING id, author_id, name, description, code_content, status, created_at, updated_at
 	`

@@ -24,7 +24,7 @@ func main() {
 
 	gin.SetMode(cfg.Server.Mode)
 
-	db, err := database.NewDB(nil, &cfg.Database)
+	db, err := database.NewDB(context.Background(), &cfg.Database)
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
@@ -63,8 +63,8 @@ func main() {
 	private := r.Group("")
 	private.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
 	{
-		private.GET("/models", middleware.RBACMiddleware(models.RoleAdmin, models.RoleQR, models.RolePM, models.RoleDS), modelHandler.ListModels)
-		private.GET("/factors", middleware.RBACMiddleware(models.RoleAdmin, models.RoleQR, models.RolePM, models.RoleDS), factorHandler.ListFactors)
+		private.GET("/models", middleware.RBACMiddleware(models.RoleAdmin, models.RoleQR, models.RolePM, models.RoleDS, models.RoleViewer), modelHandler.ListModels)
+		private.GET("/factors", middleware.RBACMiddleware(models.RoleAdmin, models.RoleQR, models.RolePM, models.RoleDS, models.RoleViewer), factorHandler.ListFactors)
 		private.GET("/me/profile", userHandler.GetProfile)
 
 		qr := private.Group("")
@@ -93,7 +93,7 @@ func main() {
 		}
 
 		pm := private.Group("")
-		pm.Use(middleware.RBACMiddleware(models.RoleAdmin, models.RolePM))
+		pm.Use(middleware.RBACMiddleware(models.RoleAdmin, models.RolePM, models.RoleViewer))
 		{
 			pm.GET("/alphas/submitted", alphaHandler.ListSubmittedAlphas)
 			pm.GET("/backtest/status", backtestHandler.ListAllBacktestStatus)

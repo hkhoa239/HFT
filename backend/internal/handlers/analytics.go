@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"net/http"
 
@@ -84,8 +85,9 @@ func (h *AnalyticsHandler) GetCorrelation(c *gin.Context) {
 	}
 
 	if len(data) < 2 || minLength <= 1 {
-		c.JSON(http.StatusOK, models.APIResponse{Success: true, Data: models.CorrelationResponse{
-			Data: []models.CorrelationItem{},
+		c.JSON(http.StatusOK, models.APIResponse{Success: true, Data: map[string]interface{}{
+			"labels": []string{},
+			"matrix": [][]float64{},
 		}})
 		return
 	}
@@ -188,6 +190,7 @@ func (h *AnalyticsHandler) GetPerformance(c *gin.Context) {
 			&totalReturn, &sharpe, &winRate, &maxDrawdown,
 			&item.PnLCurve, &item.Status,
 		); err != nil {
+			log.Printf("error scanning performance row: %v", err)
 			continue
 		}
 
@@ -200,9 +203,7 @@ func (h *AnalyticsHandler) GetPerformance(c *gin.Context) {
 		items = append(items, item)
 	}
 
-	c.JSON(http.StatusOK, models.APIResponse{Success: true, Data: models.PerformanceResponse{
-		Data: items,
-	}})
+	c.JSON(http.StatusOK, models.APIResponse{Success: true, Data: items})
 }
 
 func (h *AnalyticsHandler) GetAuditLogs(c *gin.Context) {

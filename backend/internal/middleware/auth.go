@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log"
 	"net/http"
 	"strings"
 
@@ -43,7 +44,7 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
-		claims, ok := token.Claims.(utils.JWTClaims)
+		claims, ok := token.Claims.(*utils.JWTClaims)
 		if !ok {
 			c.JSON(http.StatusUnauthorized, models.APIResponse{
 				Success: false,
@@ -61,6 +62,7 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 
 		c.Set("user", user)
 		c.Set("user_id", claims.UserID)
+		log.Printf("Authenticated user: %v (ID: %v)", claims.Username, claims.UserID)
 		c.Next()
 	}
 }

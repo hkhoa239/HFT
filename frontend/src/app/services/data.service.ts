@@ -1,8 +1,9 @@
 import { Injectable } from '@angular/core';
 import { 
   VN30F_RAW, MODELS_PERF, DEPLOYMENT, VARIABLES, 
-  FACTORS, GEN_DATASETS, QR_METRICS, DS_SCALARS, 
-  DS_CONFUSION, DS_STATS_DATA, QR_CODE, ROLL_WINDOWS 
+  FACTORS, GEN_DATASETS, QR_METRICS, DS_SCALARS,
+  DS_CONFUSION, DS_STATS_DATA, QR_CODE, ROLL_WINDOWS,
+  DS_CODE, DS_ANALY_CODE, DS_GEN_CODE
 } from './data.mocks';
 
 // PRNG
@@ -269,4 +270,4 @@ export class DataService {
     return genHFTPnL(42, 300, 0.564, 5);
   }
 }
-export { QR_CODE };
+export { QR_CODE, DS_CODE, DS_ANALY_CODE, DS_GEN_CODE };

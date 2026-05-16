@@ -85,11 +85,43 @@ export class QrWorkspaceComponent implements OnInit, OnDestroy {
     );
   }
 
+  saveAlpha() {
+    if (!this.qrCode) return;
+    
+    // For MVP, we check if an alpha already exists, otherwise create one.
+    this.http.get<any>(`${this.apiUrl}/alphas/me`).pipe(take(1)).subscribe({
+      next: (res) => {
+        if (res.success && res.data && res.data.length > 0) {
+          // Update existing
+          const alphaId = res.data[0].id;
+          this.http.put<any>(`${this.apiUrl}/alphas/${alphaId}`, {
+            name: "My Alpha Strategy",
+            code_content: this.qrCode
+          }).subscribe({
+            next: () => this.ns.success('Alpha updated successfully'),
+            error: () => this.ns.error('Failed to update alpha')
+          });
+        } else {
+          // Create new
+          this.http.post<any>(`${this.apiUrl}/alphas`, {
+            name: "My Alpha Strategy",
+            code_content: this.qrCode
+          }).subscribe({
+            next: () => this.ns.success('Alpha created and saved'),
+            error: () => this.ns.error('Failed to create alpha')
+          });
+        }
+      },
+      error: () => this.ns.error('Failed to access registry')
+    });
+  }
+
   runBacktest() {
     if (this.isSimulating) return;
-    this.isSimulating = true; // Set early to avoid race condition
+    
+    this.simStatus = 'Checking registry...';
+    this.isSimulating = true;
 
-    // First, we need an Alpha ID. For MVP, we fetch the latest alpha of the user.
     this.http.get<any>(`${this.apiUrl}/alphas/me`).pipe(take(1)).subscribe({
       next: (res) => {
         if (res.success && res.data && res.data.length > 0) {
@@ -97,7 +129,7 @@ export class QrWorkspaceComponent implements OnInit, OnDestroy {
           this.startBacktest(alphaId);
         } else {
           this.resetSim();
-          this.ns.error('No Alpha found. Please create and save an alpha first.');
+          this.ns.error('No Alpha found. Click "Save" to register your code first.');
         }
       },
       error: () => {
