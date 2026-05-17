@@ -46,8 +46,11 @@ services:
       - SERVER_PORT=8080
       - GIN_MODE=debug
       - JWT_SECRET=quantalpha-secret-key-change-in-production
+      - DATA_DIR=/data
     ports:
       - "8080:8080"
+    volumes:
+      - ./data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 10s
@@ -69,6 +72,11 @@ services:
       - DATA_DIR=/data
     volumes:
       - ./data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep python | grep -v grep"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   frontend:
     build:
@@ -84,6 +92,11 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/index.html"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
 volumes:
   postgres_data:
