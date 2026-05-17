@@ -15,7 +15,13 @@ def load_data(csv_path: Path) -> pd.DataFrame:
     df.columns = [c.strip().lower() for c in df.columns]
 
     # Time processing
-    if "time" in df.columns:
+    if "datetime" in df.columns:
+        dt_series = pd.to_datetime(df["datetime"], errors="coerce").ffill().bfill()
+        if dt_series.isnull().all():
+            df["time_sec"] = pd.Series(range(len(df)), dtype=float)
+        else:
+            df["time_sec"] = dt_series.apply(lambda x: x.timestamp() if pd.notnull(x) else 0.0)
+    elif "time" in df.columns:
         df["time_sec"] = pd.to_datetime(df["time"], format="%H:%M:%S.%f", errors="coerce")
         df["time_sec"] = (
             df["time_sec"].dt.hour * 3600
@@ -29,8 +35,25 @@ def load_data(csv_path: Path) -> pd.DataFrame:
     df["time_sec"] = df["time_sec"].ffill().fillna(0)
 
     # Derived features (Minimal set for MVP)
-    bid1 = pd.to_numeric(df.get("bid1", 0), errors="coerce").fillna(0)
-    ask1 = pd.to_numeric(df.get("ask1", 0), errors="coerce").fillna(0)
+    bid_col = "bid_price" if "bid_price" in df.columns else ("bid1" if "bid1" in df.columns else None)
+    ask_col = "ask_price" if "ask_price" in df.columns else ("ask1" if "ask1" in df.columns else None)
+
+    bid1 = pd.to_numeric(df[bid_col] if bid_col else pd.Series(0.0, index=df.index), errors="coerce").fillna(0.0)
+    ask1 = pd.to_numeric(df[ask_col] if ask_col else pd.Series(0.0, index=df.index), errors="coerce").fillna(0.0)
+    
+    df["bid1"] = bid1
+    df["ask1"] = ask1
+    
+    bid_qty_col = "bid_depth" if "bid_depth" in df.columns else ("bq1" if "bq1" in df.columns else None)
+    ask_qty_col = "ask_depth" if "ask_depth" in df.columns else ("aq1" if "aq1" in df.columns else None)
+    
+    df["bq1"] = pd.to_numeric(df[bid_qty_col] if bid_qty_col else pd.Series(0.0, index=df.index), errors="coerce").fillna(0.0)
+    df["aq1"] = pd.to_numeric(df[ask_qty_col] if ask_qty_col else pd.Series(0.0, index=df.index), errors="coerce").fillna(0.0)
+    
+    for col in ["bq2", "bq3", "aq2", "aq3"]:
+        if col not in df.columns:
+            df[col] = 0.0
+
     df["spread_bps"] = np.where(bid1 > 0, (ask1 - bid1) / bid1 * 10000, 0.5)
     
     # Simple label: price movement in next 10 ticks
@@ -39,9 +62,12 @@ def load_data(csv_path: Path) -> pd.DataFrame:
     return df.dropna(subset=["time_sec"]).reset_index(drop=True)
 
 DENY_LIST = [
-    "import ", "os.", "subprocess", "eval(", "exec(", "open(", 
+    "import os", "import subprocess", "import sys", "import shutil",
+    "import requests", "import urllib", "import socket", "import pickle",
+    "os.", "subprocess", "eval(", "exec(", "open(", 
     "__subclasses__", "socket", "sys.", "getattr", "setattr", 
     "pickle", "marshal", "shutil", "requests", "urllib",
+    "__class__", "__mro__", "globals(", "locals(",
 ]
 
 def validate_script(script: str):
@@ -75,9 +101,26 @@ def compile_signal(script: str) -> Callable:
     except Exception as e:
         raise ValueError(f"Script compilation failed: {e}")
 
-    fn = ns.get("signal")
+    fn = ns.get("signal") or ns.get("alpha_signal")
     if not callable(fn):
-        raise ValueError("Script must define `signal(row) -> int`")
+        raise ValueError("Script must define `signal(row) -> int` or `alpha_signal(...)`")
+
+    if ns.get("alpha_signal") and not ns.get("signal"):
+        alpha_fn = ns.get("alpha_signal")
+        def wrapped(row: dict):
+            t = int(row.get("time_sec", 0))
+            ask1 = [float(row.get("ask1", 0.0))]
+            return alpha_fn(
+                t,
+                ask1,
+                float(row.get("bq1", row.get("bid_qty_1", 0.0))),
+                float(row.get("bq2", row.get("bid_qty_2", 0.0))),
+                float(row.get("bq3", row.get("bid_qty_3", 0.0))),
+                float(row.get("aq1", row.get("ask_qty_1", 0.0))),
+                float(row.get("aq2", row.get("ask_qty_2", 0.0))),
+                float(row.get("aq3", row.get("ask_qty_3", 0.0))),
+            )
+        return wrapped
     return fn
 
 def run_backtest(
@@ -124,7 +167,9 @@ def run_backtest(
         idx_future_end = np.searchsorted(times, t_end + prediction_sec, side='right')
         future = df.iloc[i+1:idx_future_end]
         
-        if len(future) == 0: break
+        if len(future) == 0:
+            i = max(i + 1, idx_future_end)
+            continue
         
         label = int(future["label"].iloc[0])
         spread_bps = float(last_row.get("spread_bps", 0.5))
@@ -147,7 +192,8 @@ def run_backtest(
         "total_pnl": round(float(cumulative_pnl), 4),
         "win_rate": round(float(win_count / trade_count), 4) if trade_count > 0 else 0.0,
         "trade_count": int(trade_count),
-        "sharpe_ratio": 0.0
+        "sharpe_ratio": 0.0,
+        "max_drawdown": 0.0,
     }
     
     if pnl_deltas:
@@ -158,5 +204,16 @@ def run_backtest(
             # Clean NaN/Inf
             if not np.isnan(val) and not np.isinf(val):
                 metrics["sharpe_ratio"] = round(float(val), 4)
+
+    if pnl_curve:
+        peak = pnl_curve[0]
+        max_dd = 0.0
+        for v in pnl_curve:
+            if v > peak:
+                peak = v
+            dd = peak - v
+            if dd > max_dd:
+                max_dd = dd
+        metrics["max_drawdown"] = round(float(max_dd), 4)
 
     return metrics, pnl_curve

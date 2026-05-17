@@ -54,3 +54,17 @@ def mark_completed(job_id: str, metrics: dict):
 
 def mark_failed(job_id: str, error_log: str):
     update_job_status(job_id, 'failed', error_log=error_log)
+
+def update_model_metrics(job_id: str, metrics: dict, pkl_path: str = ""):
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE models
+                SET training_metrics = %s,
+                    pkl_path = CASE WHEN %s <> '' THEN %s ELSE pkl_path END,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                (json.dumps(metrics), pkl_path, pkl_path, job_id)
+            )
