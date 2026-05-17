@@ -8,7 +8,7 @@
 
 ## Overview
 
-**QuantAlpha Lab** is an interactive, browser-based research platform that simulates the full pipeline of a High-Frequency Trading (HFT) system. It is built as a single self-contained `index.html` file — no installation or server required.
+**QuantAlpha Lab** is a high-performance High-Frequency Trading (HFT) Research and Simulation Platform. It consists of a decoupled client-server architecture including an Angular 18 Frontend, a Go Backend API service, and an Asynchronous Python Worker daemon backed by Redis Streams and PostgreSQL.
 
 The platform is organised around **three professional roles** that collaborate in a sequential workflow:
 
@@ -17,11 +17,11 @@ DS  (Data Scientist)
  │
  │  analyzes data, trains models, publishes datasets
  ▼
-QR  (Quant Researcher)
+ QR  (Quant Researcher)
  │
  │  uses published data to write & backtest alpha signals
  ▼
-PM  (Portfolio Manager)
+ PM  (Portfolio Manager)
      monitors all strategies and manages capital allocation
 ```
 
@@ -184,27 +184,47 @@ depth_ratio = WQ_ask / WQ_bid
 ## Project Structure
 
 ```
-assignment_1/
-├── index.html              # Self-contained interactive platform (no build step needed)
-├── README.md               # This file
-└── data/
-    └── VN30F2112.csv       # Raw Level-3 order-book data, VN30 Futures 
+HFT/
+├── backend/                # Go Backend Service (Gin HTTP framework, Pgx PG Client, Redis Producer)
+├── frontend/               # Angular 18 SPA Frontend (served via Nginx or pnpm)
+├── worker/                 # Asynchronous Python Worker (Redis consumer, scikit-learn training, backtester)
+├── data/                   # Dataset Folder
+│   └── VN30F2112.csv       # Raw Level-3 order-book data, VN30 Futures (55MB)
+├── docker-compose.yml      # Service Orchestration Configuration
+└── README.md               # This file
 ```
 
 ---
 
 ## How to Run
 
-Open `index.html` directly in a browser — no server, no installation:
+The easiest way to spin up the entire stabilized HFT environment (PostgreSQL, Redis, Go Backend, Python Worker, and Angular Frontend) is via Docker Compose:
 
 ```bash
-open index.html
-# or drag-and-drop into Chrome / Edge / Firefox
+# 1. Clean build and start all containers in the background
+docker compose up --build -d
+
+# 2. Check service status
+docker compose ps
 ```
 
-The platform uses only CDN-hosted libraries ([CodeMirror](https://codemirror.net/) for the code editor, [Chart.js](https://www.chartjs.org/) for charts) and requires no backend.
+Once all services are healthy:
+* **Frontend**: Open `http://localhost:3000` (Nginx-served) or `http://localhost:4200` (local dev)
+* **Backend API**: Accessible at `http://localhost:8080`
+* **Default Seed Users**:
+  * **Quant Researcher**: `quant` / `password123`
+  * **Data Scientist**: `admin` / `password123`
+  * **Portfolio Manager**: `pm` / `password123`
 
----
+To run backend tests locally:
+```bash
+cd backend && go test ./...
+```
+
+To run worker sandbox tests locally:
+```bash
+pytest worker/
+```
 
 ## References
 
