@@ -1,13 +1,13 @@
-import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { TopbarComponent } from './components/topbar/topbar.component';
+import { Component, signal } from '@angular/core';
+import { LoginComponent } from './auth/login/login.component';
 import { SidebarComponent } from './components/sidebar/sidebar.component';
 import { StatusbarComponent } from './components/statusbar/statusbar.component';
-import { QrWorkspaceComponent } from './workspaces/qr/qr-workspace.component';
+import { ToastComponent } from './components/toast/toast.component';
+import { TopbarComponent } from './components/topbar/topbar.component';
 import { DsWorkspaceComponent } from './workspaces/ds/ds-workspace.component';
 import { PmWorkspaceComponent } from './workspaces/pm/pm-workspace.component';
-import { ToastComponent } from './components/toast/toast.component';
-import { LoginComponent } from './auth/login/login.component';
+import { QrWorkspaceComponent } from './workspaces/qr/qr-workspace.component';
 
 @Component({
   selector: 'app-root',
@@ -43,7 +43,8 @@ export class App {
         const user = JSON.parse(userJson);
         this.currentUser.set(user);
         this.isLoggedIn.set(true);
-        this.activeWorkspace = user.role;
+        const role = (user.role || '').toLowerCase();
+        this.activeWorkspace = role === 'admin' ? 'DS' : user.role.toUpperCase();
       }
     } catch (e) {
       console.error('Failed to hydrate auth state', e);
@@ -54,7 +55,8 @@ export class App {
   onLoginSuccess(data: { username: string; role: string }): void {
     this.currentUser.set(data);
     this.isLoggedIn.set(true);
-    this.activeWorkspace = data.role;
+    const role = (data.role || '').toLowerCase();
+    this.activeWorkspace = role === 'admin' ? 'DS' : data.role.toUpperCase();
   }
 
   logout(): void {

@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
+import { FormsModule } from '@angular/forms';
 import { interval, Subscription } from 'rxjs';
 import { switchMap, takeWhile, take } from 'rxjs/operators';
 import { DataService } from '../../services/data.service';
@@ -13,7 +14,7 @@ import { APP_CONFIG } from '../../app.constants';
 @Component({
   selector: 'app-qr-workspace',
   standalone: true,
-  imports: [CommonModule, ChartWrapperComponent, EditorWrapperComponent],
+  imports: [CommonModule, ChartWrapperComponent, EditorWrapperComponent, FormsModule],
   templateUrl: './qr-workspace.component.html',
   styleUrl: './qr-workspace.component.scss'
 })
@@ -33,6 +34,16 @@ export class QrWorkspaceComponent implements OnInit, OnDestroy {
   simProgress = 0;
   simStatus = '';
   private currentJobId: string | null = null;
+  alphaId: string | null = null;
+  alphaStatus = 'draft';
+  runParams = {
+    instrument: 'VN30F2112',
+    lookbackSec: 60,
+    predWindowSec: 10,
+    capital: 1000000,
+    start: '2021-01-01',
+    end: '2021-12-31'
+  };
 
   // Metrics
   metrics: any[] = [];
@@ -51,15 +62,63 @@ export class QrWorkspaceComponent implements OnInit, OnDestroy {
   ) { }
 
   ngOnInit() {
-    this.variables = this.dataService.getVariables();
+    this.variables = { ...this.dataService.getVariables() };
     this.varCategories = Object.keys(this.variables);
     
-    import('../../services/data.service').then(m => {
+    import('../../services/code-templates').then(m => {
       this.qrCode = m.QR_CODE;
     });
 
     // Initial empty chart
     this.updatePnlChart([]);
+    this.loadMyAlpha();
+    this.loadLatestBacktest();
+    this.loadActiveFactors();
+  }
+
+  private loadActiveFactors() {
+    this.dataService.getFactors().subscribe({
+      next: (factors) => {
+        if (factors && factors.length > 0) {
+          this.variables['ACTIVE FACTORS'] = factors.map((f: any) => ({
+            name: f.name,
+            desc: f.description || 'Active published factor',
+            ds: true
+          }));
+          this.varCategories = Object.keys(this.variables);
+        }
+      }
+    });
+  }
+
+  private loadMyAlpha() {
+    this.http.get<any>(`${this.apiUrl}/alphas/me`).pipe(take(1)).subscribe({
+      next: (res) => {
+        if (res.success && res.data && res.data.length > 0) {
+          const a = res.data[0];
+          this.alphaId = a.id;
+          this.alphaStatus = a.status || 'draft';
+          if (!this.qrCode) this.qrCode = a.code_content || '';
+        } else {
+          this.alphaId = null;
+          this.alphaStatus = 'draft';
+        }
+      }
+    });
+  }
+
+  private loadLatestBacktest() {
+    this.http.get<any>(`${this.apiUrl}/backtest/me/status`).pipe(take(1)).subscribe({
+      next: (res) => {
+        if (res.success && res.data && res.data.length > 0) {
+          // Get the most recent completed backtest
+          const latest = res.data.find((b: any) => b.status === 'completed');
+          if (latest && latest.metrics) {
+            this.handleSuccess(latest.metrics);
+          }
+        }
+      }
+    });
   }
 
   ngOnDestroy() {
@@ -98,7 +157,7 @@ export class QrWorkspaceComponent implements OnInit, OnDestroy {
             name: "My Alpha Strategy",
             code_content: this.qrCode
           }).subscribe({
-            next: () => this.ns.success('Alpha updated successfully'),
+            next: () => { this.ns.success('Alpha updated successfully'); this.loadMyAlpha(); },
             error: () => this.ns.error('Failed to update alpha')
           });
         } else {
@@ -107,7 +166,7 @@ export class QrWorkspaceComponent implements OnInit, OnDestroy {
             name: "My Alpha Strategy",
             code_content: this.qrCode
           }).subscribe({
-            next: () => this.ns.success('Alpha created and saved'),
+            next: () => { this.ns.success('Alpha created and saved'); this.loadMyAlpha(); },
             error: () => this.ns.error('Failed to create alpha')
           });
         }
@@ -147,9 +206,12 @@ export class QrWorkspaceComponent implements OnInit, OnDestroy {
     const payload = {
       alpha_id: alphaId,
       params: {
-        start: "2021-01-01",
-        end: "2021-12-31",
-        capital: 1000000
+        start: this.runParams.start,
+        end: this.runParams.end,
+        capital: this.runParams.capital,
+        instrument: this.runParams.instrument,
+        lookback_sec: this.runParams.lookbackSec,
+        prediction_sec: this.runParams.predWindowSec
       }
     };
 
@@ -192,8 +254,8 @@ export class QrWorkspaceComponent implements OnInit, OnDestroy {
       next: (res) => {
         const run = res.data;
         if (run.status === 'running') {
-          this.simStatus = 'Processing Windows...';
-          this.simProgress = 60;
+          this.simStatus = 'Running';
+          this.simProgress = 50;
         } else if (run.status === 'completed') {
           this.handleSuccess(run.metrics);
         } else if (run.status === 'failed') {
@@ -204,6 +266,25 @@ export class QrWorkspaceComponent implements OnInit, OnDestroy {
         this.ns.error('Polling failed');
         this.resetSim();
       }
+    });
+  }
+
+  submitAlpha() {
+    if (!this.alphaId) {
+      this.ns.error('No alpha available to submit. Save first.');
+      return;
+    }
+    this.http.post<any>(`${this.apiUrl}/alphas/${this.alphaId}/submit`, {}).pipe(take(1)).subscribe({
+      next: (res) => {
+        if (res.success) {
+          this.alphaStatus = 'submitted';
+          this.ns.success('Alpha submitted');
+          this.loadMyAlpha();
+        } else {
+          this.ns.error(res.error || 'Submit failed');
+        }
+      },
+      error: () => this.ns.error('Submit failed')
     });
   }
 
@@ -239,7 +320,11 @@ export class QrWorkspaceComponent implements OnInit, OnDestroy {
       { l: 'Trade Count', v: trades, s: 'Execution frequency', cls: 'cb' }
     ];
 
-    this.updatePnlChart(metrics.pnl_curve || []);
+    const rawCurve = metrics.pnl_curve || [];
+    const pnlCurvePoints = rawCurve.map((p: any) => 
+      typeof p === 'number' ? p : (p && typeof p.cumPnL === 'number' ? p.cumPnL : 0)
+    );
+    this.updatePnlChart(pnlCurvePoints);
     this.ns.success('Backtest complete!');
   }
 

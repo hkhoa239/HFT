@@ -5,6 +5,7 @@
     <div class="pa">
       <button class="btn btn-g" (click)="ns.info('Format complete')">Format</button>
       <button class="btn btn-g" (click)="saveAlpha()">Save</button>
+      <button class="btn btn-g" (click)="submitAlpha()">Submit</button>
       <button class="btn btn-g" (click)="ns.info('Sharing link copied')">Share</button>
     </div>
   </div>
@@ -34,27 +35,27 @@
 <div class="panel" id="qr-sc">
   <div class="sim-grp">
     <span>Instrument</span>
-    <select class="inp">
-      <option selected>VN30F2112</option>
+    <select class="inp" [(ngModel)]="runParams.instrument">
+      <option>VN30F2112</option>
       <option>CSI 300 Futures</option>
       <option>Nikkei 225 Futures</option>
     </select>
   </div>
   <div class="sim-grp">
     <span>Lookback</span>
-    <select class="inp">
-      <option>10s</option>
-      <option>30s</option>
-      <option selected>60s</option>
-      <option>120s</option>
+    <select class="inp" [(ngModel)]="runParams.lookbackSec">
+      <option [ngValue]="10">10s</option>
+      <option [ngValue]="30">30s</option>
+      <option [ngValue]="60">60s</option>
+      <option [ngValue]="120">120s</option>
     </select>
   </div>
   <div class="sim-grp">
     <span>Pred Window</span>
-    <select class="inp">
-      <option>5s</option>
-      <option selected>10s</option>
-      <option>30s</option>
+    <select class="inp" [(ngModel)]="runParams.predWindowSec">
+      <option [ngValue]="5">5s</option>
+      <option [ngValue]="10">10s</option>
+      <option [ngValue]="30">30s</option>
     </select>
   </div>
   <div class="sim-grp">

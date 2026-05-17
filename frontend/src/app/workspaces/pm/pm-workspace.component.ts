@@ -46,72 +46,50 @@ export class PmWorkspaceComponent implements OnInit {
   ) { }
 
   ngOnInit() {
-    this.loadPerformanceData();
-    this.loadCorrelationData();
-    this.modelsPerf = this.dataService.getModelsPerf();
-    this.deployment = this.dataService.getDeployment();
-
+    this.refreshAll();
     this.initDepthChart();
   }
 
+  refreshAll() {
+    this.loadPerformanceData();
+    this.loadCorrelationData();
+    
+    this.dataService.getModels().subscribe(m => this.modelsPerf = m);
+  }
+
   private loadPerformanceData() {
-    this.http.get<any>(`${this.apiUrl}/analytics/performance`).pipe(take(1)).subscribe({
-      next: (res) => {
-        if (res.success && res.data) {
-          this.strategies = res.data.map((item: any) => ({
-            id: item.alpha_name || 'Unknown',
-            author: item.author_name || 'System',
-            model: 'XGB-Alpha', // Default placeholder for now
-            weights: '0.42, 0.58',
-            lb: 60,
-            totalPnL: item.total_return ?? 0,
-            sharpe: item.sharpe ?? 0,
-            winRate: item.win_rate ?? 0,
-            maxDD: Math.abs(item.max_drawdown ?? 0),
-            status: item.status === 'completed' ? 'Active' : 'Archived',
-            rollPnL: this.extractPnLArray(item.pnl_curve)
-          }));
-          this.originalStrategies = [...this.strategies];
-          this.stratLabels = this.strategies.map(s => s.id);
-          this.generateHeatmap();
-          this.generateSparklines();
-        }
-      },
-      error: () => {
-        // Fallback to mock if API fails for local dev resilience
-        this.strategies = this.dataService.getStrategies();
-        this.originalStrategies = [...this.strategies];
-        this.stratLabels = this.strategies.map(s => s.id);
+    this.dataService.getPerformance().subscribe(data => {
+      this.strategies = data;
+      this.originalStrategies = [...this.strategies];
+      this.stratLabels = this.strategies.map(s => s.id);
+      
+      // Populate deployment
+      this.deployment = this.strategies.map(s => ({
+        strat: s.id,
+        weight: Math.floor(100 / (this.strategies.length || 1)),
+        signal: s.status === 'Active' ? 'ACTIVE' : '—',
+        contrib: s.totalPnL / 100
+      }));
+
+      this.generateHeatmap();
+      this.generateSparklines();
+    });
+  }
+
+  private loadCorrelationData() {
+    this.dataService.getCorrelation().subscribe(data => {
+      if (data && data.matrix) {
+        this.stratLabels = data.labels || [];
+        this.stratCorr = data.matrix || [];
         this.generateHeatmap();
-        this.generateSparklines();
       }
     });
   }
 
-  private extractPnLArray(curve: any[] | undefined): number[] {
-    if (!curve || curve.length === 0) return [0, 0, 0];
-    return curve.map(p => p.cumPnL ?? 0);
-  }
-
-  private loadCorrelationData() {
-    this.http.get<any>(`${this.apiUrl}/analytics/correlation`).pipe(take(1)).subscribe({
-      next: (res) => {
-        if (res.success && res.data && res.data.matrix) {
-          this.stratLabels = res.data.labels || [];
-          this.stratCorr = res.data.matrix || [];
-          this.generateHeatmap();
-        } else {
-          this.stratLabels = [];
-          this.stratCorr = [];
-          this.heatmapCells = [];
-        }
-      },
-      error: () => {
-        // Fallback for dev
-        this.stratLabels = ['S1', 'S2', 'S3'];
-        this.stratCorr = this.dataService.getStratCorr();
-        this.generateHeatmap();
-      }
+  seedDatabase() {
+    this.dataService.seedData().subscribe({
+      next: () => this.refreshAll(),
+      error: (err) => console.error('Seed failed', err)
     });
   }
 

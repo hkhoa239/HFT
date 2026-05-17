@@ -10,6 +10,9 @@
         style="width: 140px"
         (input)="filterStrats($any($event.target).value)"
       />
+      <!-- <button class="btn btn-primary" (click)="seedDatabase()" style="padding: 2px 8px; font-size: 10px; margin-left: 8px;">
+        Seed Data
+      </button> -->
     </div>
   </div>
   <div class="pb" style="padding: 0">
@@ -40,7 +43,7 @@
               >
             </td>
             <td [class]="s.totalPnL >= 0 ? 'cg' : 'cr'" style="font-weight: 600">
-              {{ s.totalPnL >= 0 ? '+' : '' }}{{ s.totalPnL }} bps
+              {{ s.totalPnL >= 0 ? '+' : '' }}{{ s.totalPnL.toFixed(1) }} bps
             </td>
             <td [class]="s.sharpe >= 1 ? 'cg' : s.sharpe >= 0 ? 'ca' : 'cr'">
               {{ s.sharpe.toFixed(2) }}
@@ -48,7 +51,7 @@
             <td [class]="s.winRate >= 0.55 ? 'cg' : s.winRate >= 0.5 ? 'ca' : 'cr'">
               {{ (s.winRate * 100).toFixed(1) }}%
             </td>
-            <td class="cr">-{{ s.maxDD }} bps</td>
+            <td class="cr">-{{ s.maxDD.toFixed(1) }} bps</td>
             <td style="padding: 4px 8px" [innerHTML]="sparklines[s.id]"></td>
             <td>
               <span

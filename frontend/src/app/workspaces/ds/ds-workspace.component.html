@@ -75,6 +75,63 @@
       </div>
     </div>
     <div class="pb">
+      <!-- Simple Model Configuration Inputs -->
+      <div
+        style="
+          display: flex;
+          gap: 8px;
+          margin-bottom: 8px;
+          align-items: center;
+        "
+      >
+        <span
+          style="
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 600;
+          "
+          >Model Name:</span
+        >
+        <input
+          [(ngModel)]="modelName"
+          placeholder="Model Name (e.g. RF_HFT_v1)"
+          style="
+            flex: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+            outline: none;
+          "
+        />
+        <span
+          style="
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 600;
+            margin-left: 4px;
+          "
+          >Version:</span
+        >
+        <input
+          [(ngModel)]="modelVersion"
+          placeholder="Version (e.g. v1.0)"
+          style="
+            width: 80px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-size: 12px;
+            outline: none;
+          "
+        />
+      </div>
       <div style="flex:1;min-height:140px;">
         <app-editor [value]="trainCode"></app-editor>
       </div>
