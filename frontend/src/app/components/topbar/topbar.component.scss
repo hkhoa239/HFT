@@ -1,0 +1,70 @@
+:host {
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  height: 100%;
+}
+
+.logo { font-size: 13px; font-weight: 700; letter-spacing: .06e; color: var(--accent-blue); white-space: nowrap; }
+.logo em { color: var(--accent-green); font-style: normal; }
+
+.ws-tabs { display: flex; gap: 2px; background: var(--bg-base); padding: 3px; border-radius: var(--radius); margin-left: 4px; }
+.ws-tab {
+  padding: 4px 16px; border-radius: 3px; border: none; background: none;
+  color: var(--text-muted); font-size: 11px; font-weight: 600; letter-spacing: .06em; transition: background .15s, color .15s;
+  cursor: pointer;
+}
+.ws-tab:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.ws-tab.active { background: var(--accent-blue); color: #fff; }
+
+.sp { flex: 1; }
+#clock { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; margin-right: 8px; }
+
+.user-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-elevated);
+  padding: 3px 3px 3px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+
+  &:hover {
+    border-color: var(--accent-red);
+    background: rgba(244,92,92,0.05);
+    .avatar { background: var(--accent-red); }
+  }
+}
+
+.username {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.avatar { 
+  width: 24px; height: 24px; border-radius: 50%; 
+  background: var(--accent-blue); 
+  display: flex; align-items: center; justify-content: center; 
+  font-size: 9px; font-weight: 700; color: #fff; 
+  transition: background .15s;
+}
+
+.role-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  
+  &.admin { color: #fbbf24; background: rgba(234,179,8,0.1); }
+  &.ds { color: #818cf8; background: rgba(99,102,241,0.1); }
+  &.qr { color: #34d399; background: rgba(16,185,129,0.1); }
+  &.pm { color: #fb923c; background: rgba(249,115,22,0.1); }
+}

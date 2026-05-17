@@ -1,0 +1,13 @@
+<span class="logo">QUANT<em>ALPHA</em> LAB</span>
+<div class="ws-tabs">
+  <button class="ws-tab" [class.active]="workspace === 'QR'" (click)="setWorkspace('QR')" title="Quant Researcher">QR</button>
+  <button class="ws-tab" [class.active]="workspace === 'DS'" (click)="setWorkspace('DS')" title="Data Scientist">DS</button>
+  <button class="ws-tab" [class.active]="workspace === 'PM'" (click)="setWorkspace('PM')" title="Portfolio Manager">PM</button>
+</div>
+<span class="sp"></span>
+<span class="role-badge" [class]="user?.role?.toLowerCase() || ''">{{user?.role}}</span>
+<span id="clock">{{timeString}}</span>
+<div class="user-pill" (click)="onLogout()" title="Click to Logout">
+  <span class="username">{{user?.username}}</span>
+  <div class="avatar">{{getInitials()}}</div>
+</div>
