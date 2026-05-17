@@ -12,10 +12,10 @@ import (
 )
 
 type UserHandler struct {
-	db *database.Queries
+	db database.Querier
 }
 
-func NewUserHandler(db *database.Queries) *UserHandler {
+func NewUserHandler(db database.Querier) *UserHandler {
 	return &UserHandler{db: db}
 }
 

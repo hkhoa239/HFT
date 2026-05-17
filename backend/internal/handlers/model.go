@@ -12,11 +12,11 @@ import (
 )
 
 type ModelHandler struct {
-	db   *database.Queries
+	db   database.Querier
 	prod *redis.Producer
 }
 
-func NewModelHandler(db *database.Queries, prod *redis.Producer) *ModelHandler {
+func NewModelHandler(db database.Querier, prod *redis.Producer) *ModelHandler {
 	return &ModelHandler{db: db, prod: prod}
 }
 
@@ -40,14 +40,22 @@ func (h *ModelHandler) TrainModel(c *gin.Context) {
 		return
 	}
 
-	userID, _ := c.Get("user_id")
-	model, err := h.db.CreateModel(c.Request.Context(), req.Name, req.Version, userID.(uuid.UUID), "", req.Params)
+	userIDRaw, _ := c.Get("user_id")
+	userID := userIDRaw.(uuid.UUID)
+
+	// Safety check: verify user exists in DB
+	if _, err := h.db.GetUserByID(c.Request.Context(), userID); err != nil {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{Success: false, Error: "authenticated user not found in database"})
+		return
+	}
+
+	model, err := h.db.CreateModel(c.Request.Context(), req.Name, req.Version, userID, "", req.Params)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "failed to create model training job"})
 		return
 	}
 
-	payload := redis.NewJobPayload("train", userID.(uuid.UUID).String(), "", "", map[string]interface{}{
+	payload := redis.NewJobPayload("train", userID.String(), "", "", map[string]interface{}{
 		"model_name": req.Name,
 		"version":    req.Version,
 		"params":     req.Params,

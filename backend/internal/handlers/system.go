@@ -12,11 +12,11 @@ import (
 )
 
 type SystemHandler struct {
-	db   *database.Queries
-	prod *redis.Producer
+	db   database.Querier
+	prod redis.JobProducer
 }
 
-func NewSystemHandler(db *database.Queries, prod *redis.Producer) *SystemHandler {
+func NewSystemHandler(db database.Querier, prod redis.JobProducer) *SystemHandler {
 	return &SystemHandler{db: db, prod: prod}
 }
 
@@ -29,7 +29,7 @@ func (h *SystemHandler) Ready(c *gin.Context) {
 	defer cancel()
 
 	// Check DB
-	if err := h.db.GetDB().Ping(ctx); err != nil {
+	if err := h.db.Ping(ctx); err != nil {
 		c.JSON(http.StatusServiceUnavailable, models.APIResponse{Success: false, Error: "database unreachable"})
 		return
 	}

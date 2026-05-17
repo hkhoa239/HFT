@@ -2,7 +2,9 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,10 +17,6 @@ type Queries struct {
 
 func NewQueries(db *pgxpool.Pool) *Queries {
 	return &Queries{db: db}
-}
-
-func (q *Queries) GetDB() *pgxpool.Pool {
-	return q.db
 }
 
 func (q *Queries) CreateUser(ctx context.Context, username, passwordHash string, role models.UserRole, fullName string) (*models.User, error) {
@@ -411,11 +409,15 @@ func (q *Queries) CreateBacktestRun(ctx context.Context, alphaID, executorID uui
 		RETURNING id, alpha_id, executor_id, status, params, metrics, error_log, created_at, finished_at
 	`
 
+	var errorLog *string
 	err := q.db.QueryRow(ctx, query, backtest.ID, backtest.AlphaID, backtest.ExecutorID, backtest.Status, backtest.Params).Scan(
-		&backtest.ID, &backtest.AlphaID, &backtest.ExecutorID, &backtest.Status, &backtest.Params, &backtest.Metrics, &backtest.ErrorLog, &backtest.CreatedAt, &backtest.FinishedAt,
+		&backtest.ID, &backtest.AlphaID, &backtest.ExecutorID, &backtest.Status, &backtest.Params, &backtest.Metrics, &errorLog, &backtest.CreatedAt, &backtest.FinishedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backtest run: %w", err)
+	}
+	if errorLog != nil {
+		backtest.ErrorLog = *errorLog
 	}
 
 	return backtest, nil
@@ -430,11 +432,15 @@ func (q *Queries) GetBacktestRunByID(ctx context.Context, id uuid.UUID) (*models
 		WHERE id = $1
 	`
 
+	var errorLog *string
 	err := q.db.QueryRow(ctx, query, id).Scan(
-		&backtest.ID, &backtest.AlphaID, &backtest.ExecutorID, &backtest.Status, &backtest.Params, &backtest.Metrics, &backtest.ErrorLog, &backtest.CreatedAt, &backtest.FinishedAt,
+		&backtest.ID, &backtest.AlphaID, &backtest.ExecutorID, &backtest.Status, &backtest.Params, &backtest.Metrics, &errorLog, &backtest.CreatedAt, &backtest.FinishedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("backtest run not found: %w", err)
+	}
+	if errorLog != nil {
+		backtest.ErrorLog = *errorLog
 	}
 
 	return &backtest, nil
@@ -457,8 +463,12 @@ func (q *Queries) ListBacktestRunsByExecutor(ctx context.Context, executorID uui
 	var runs []models.BacktestRun
 	for rows.Next() {
 		var run models.BacktestRun
-		if err := rows.Scan(&run.ID, &run.AlphaID, &run.ExecutorID, &run.Status, &run.Params, &run.Metrics, &run.ErrorLog, &run.CreatedAt, &run.FinishedAt); err != nil {
+		var errorLog *string
+		if err := rows.Scan(&run.ID, &run.AlphaID, &run.ExecutorID, &run.Status, &run.Params, &run.Metrics, &errorLog, &run.CreatedAt, &run.FinishedAt); err != nil {
 			return nil, err
+		}
+		if errorLog != nil {
+			run.ErrorLog = *errorLog
 		}
 		runs = append(runs, run)
 	}
@@ -482,8 +492,12 @@ func (q *Queries) ListBacktestRuns(ctx context.Context) ([]models.BacktestRun, e
 	var runs []models.BacktestRun
 	for rows.Next() {
 		var run models.BacktestRun
-		if err := rows.Scan(&run.ID, &run.AlphaID, &run.ExecutorID, &run.Status, &run.Params, &run.Metrics, &run.ErrorLog, &run.CreatedAt, &run.FinishedAt); err != nil {
+		var errorLog *string
+		if err := rows.Scan(&run.ID, &run.AlphaID, &run.ExecutorID, &run.Status, &run.Params, &run.Metrics, &errorLog, &run.CreatedAt, &run.FinishedAt); err != nil {
 			return nil, err
+		}
+		if errorLog != nil {
+			run.ErrorLog = *errorLog
 		}
 		runs = append(runs, run)
 	}
@@ -494,11 +508,11 @@ func (q *Queries) ListBacktestRuns(ctx context.Context) ([]models.BacktestRun, e
 func (q *Queries) UpdateBacktestRunStatus(ctx context.Context, id uuid.UUID, status models.JobStatus, metrics map[string]interface{}, errorLog string) error {
 	query := `
 		UPDATE backtest_runs
-		SET status = $2, metrics = $3, error_log = $4, finished_at = CASE WHEN $2 IN ('completed', 'failed') THEN CURRENT_TIMESTAMP ELSE finished_at END
+		SET status = $2, metrics = $3, error_log = $4, finished_at = CASE WHEN $5 = 'completed' OR $5 = 'failed' THEN CURRENT_TIMESTAMP ELSE finished_at END
 		WHERE id = $1
 	`
 
-	_, err := q.db.Exec(ctx, query, id, status, metrics, errorLog)
+	_, err := q.db.Exec(ctx, query, id, status, metrics, errorLog, string(status))
 	if err != nil {
 		return fmt.Errorf("failed to update backtest run: %w", err)
 	}
@@ -507,21 +521,22 @@ func (q *Queries) UpdateBacktestRunStatus(ctx context.Context, id uuid.UUID, sta
 
 func (q *Queries) CreateModel(ctx context.Context, name, version string, dsID uuid.UUID, pklPath string, trainingParams map[string]interface{}) (*models.Model, error) {
 	model := &models.Model{
-		ID:             uuid.New(),
-		Name:           name,
-		Version:        version,
-		DSID:           dsID,
-		PklPath:        pklPath,
-		TrainingParams: trainingParams,
+		ID:              uuid.New(),
+		Name:            name,
+		Version:         version,
+		DSID:            dsID,
+		PklPath:         pklPath,
+		TrainingParams:  trainingParams,
+		TrainingMetrics: map[string]interface{}{},
 	}
 
 	query := `
-		INSERT INTO models (id, name, version, ds_id, pkl_path, training_params)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO models (id, name, version, ds_id, pkl_path, training_params, training_metrics)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, name, version, ds_id, pkl_path, training_params, training_metrics, created_at, updated_at
 	`
 
-	err := q.db.QueryRow(ctx, query, model.ID, model.Name, model.Version, model.DSID, model.PklPath, model.TrainingParams).Scan(
+	err := q.db.QueryRow(ctx, query, model.ID, model.Name, model.Version, model.DSID, model.PklPath, model.TrainingParams, model.TrainingMetrics).Scan(
 		&model.ID, &model.Name, &model.Version, &model.DSID, &model.PklPath, &model.TrainingParams, &model.TrainingMetrics, &model.CreatedAt, &model.UpdatedAt,
 	)
 	if err != nil {
@@ -637,4 +652,153 @@ func (q *Queries) DeleteJob(ctx context.Context, jobID uuid.UUID) error {
 		return fmt.Errorf("failed to delete job: %w", err)
 	}
 	return nil
+}
+
+func (q *Queries) Ping(ctx context.Context) error {
+	return q.db.Ping(ctx)
+}
+
+func (q *Queries) GetPerformance(ctx context.Context) ([]models.PerformanceItem, error) {
+	query := `
+		WITH LatestBacktests AS (
+			SELECT DISTINCT ON (alpha_id) 
+				id, alpha_id, metrics, status, created_at
+			FROM backtest_runs
+			WHERE status = 'completed'
+			ORDER BY alpha_id, created_at DESC
+		)
+		SELECT 
+			lb.alpha_id,
+			a.name as alpha_name,
+			u.username as author_name,
+			lb.metrics->>'total_pnl' as total_return,
+			lb.metrics->>'sharpe_ratio' as sharpe,
+			lb.metrics->>'win_rate' as win_rate,
+			lb.metrics->>'max_drawdown' as max_drawdown,
+			lb.metrics->'pnl_curve' as pnl_curve,
+			lb.status
+		FROM LatestBacktests lb
+		JOIN alphas a ON lb.alpha_id = a.id
+		JOIN users u ON a.author_id = u.id
+		ORDER BY lb.created_at DESC
+	`
+
+	rows, err := q.db.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to aggregate performance: %w", err)
+	}
+	defer rows.Close()
+
+	var performance []models.PerformanceItem
+	for rows.Next() {
+		var item models.PerformanceItem
+		var totalReturnStr, sharpeStr, winRateStr, maxDrawdownStr string
+		var pnlCurveRaw []byte
+
+		err := rows.Scan(
+			&item.AlphaID,
+			&item.AlphaName,
+			&item.AuthorName,
+			&totalReturnStr,
+			&sharpeStr,
+			&winRateStr,
+			&maxDrawdownStr,
+			&pnlCurveRaw,
+			&item.Status,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// Convert strings to float64
+		item.TotalReturn, _ = strconv.ParseFloat(totalReturnStr, 64)
+		item.Sharpe, _ = strconv.ParseFloat(sharpeStr, 64)
+		item.WinRate, _ = strconv.ParseFloat(winRateStr, 64)
+		item.MaxDrawdown, _ = strconv.ParseFloat(maxDrawdownStr, 64)
+
+		if len(pnlCurveRaw) > 0 {
+			_ = json.Unmarshal(pnlCurveRaw, &item.PnLCurve)
+		}
+
+		performance = append(performance, item)
+	}
+
+	return performance, nil
+}
+
+func (q *Queries) GetCorrelationData(ctx context.Context) ([]models.CorrelationItemRaw, error) {
+	query := `
+		WITH LatestBacktests AS (
+			SELECT DISTINCT ON (alpha_id) 
+				alpha_id, metrics, created_at
+			FROM backtest_runs
+			WHERE status = 'completed' AND metrics->'pnl_curve' IS NOT NULL
+			ORDER BY alpha_id, created_at DESC
+			LIMIT 10
+		)
+		SELECT 
+			a.name as alpha_name,
+			lb.metrics->'pnl_curve' as pnl_curve
+		FROM LatestBacktests lb
+		JOIN alphas a ON lb.alpha_id = a.id
+		ORDER BY lb.created_at DESC
+	`
+
+	rows, err := q.db.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch correlation data: %w", err)
+	}
+	defer rows.Close()
+
+	var data []models.CorrelationItemRaw
+	for rows.Next() {
+		var item models.CorrelationItemRaw
+		var pnlCurveRaw []byte
+		if err := rows.Scan(&item.AlphaName, &pnlCurveRaw); err != nil {
+			continue
+		}
+		if len(pnlCurveRaw) > 0 {
+			_ = json.Unmarshal(pnlCurveRaw, &item.PnLCurve)
+		}
+		data = append(data, item)
+	}
+	return data, nil
+}
+
+func (q *Queries) FindActiveBacktestRun(ctx context.Context, alphaID uuid.UUID, params map[string]interface{}) (*models.BacktestRun, error) {
+	query := `
+		SELECT id, alpha_id, executor_id, status, params, metrics, error_log, created_at, finished_at
+		FROM backtest_runs
+		WHERE alpha_id = $1 AND (status = 'pending' OR status = 'running') AND params::jsonb = $2::jsonb
+		LIMIT 1;
+	`
+	paramsJSON, _ := json.Marshal(params)
+
+	row := q.db.QueryRow(ctx, query, alphaID, paramsJSON)
+
+	var b models.BacktestRun
+	var metricsRaw []byte
+	var paramsRaw []byte
+	var errorLog *string
+
+	err := row.Scan(
+		&b.ID, &b.AlphaID, &b.ExecutorID, &b.Status, &paramsRaw,
+		&metricsRaw, &errorLog, &b.CreatedAt, &b.FinishedAt,
+	)
+
+	if err != nil {
+		return nil, nil // Not found or error
+	}
+	if errorLog != nil {
+		b.ErrorLog = *errorLog
+	}
+
+	if len(paramsRaw) > 0 {
+		json.Unmarshal(paramsRaw, &b.Params)
+	}
+	if len(metricsRaw) > 0 {
+		json.Unmarshal(metricsRaw, &b.Metrics)
+	}
+
+	return &b, nil
 }

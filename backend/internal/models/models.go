@@ -111,7 +111,10 @@ type UpdateFactorRequest struct {
 }
 
 type FactorPreviewResponse struct {
-	Data []map[string]interface{} `json:"data"`
+	Data     []map[string]interface{} `json:"data"`
+	RowCount int                      `json:"row_count"`
+	Mean     float64                  `json:"mean"`
+	Std      float64                  `json:"std"`
 }
 
 type Alpha struct {
@@ -150,9 +153,12 @@ type BacktestRun struct {
 }
 
 type BacktestParams struct {
-	Start   string  `json:"start" validate:"required"`
-	End     string  `json:"end" validate:"required"`
-	Capital float64 `json:"capital" validate:"required,gt=0"`
+	Start         string  `json:"start" validate:"required"`
+	End           string  `json:"end" validate:"required"`
+	Capital       float64 `json:"capital" validate:"required,gt=0"`
+	Instrument    string  `json:"instrument" validate:"omitempty"`
+	LookbackSec   int     `json:"lookback_sec" validate:"omitempty"`
+	PredictionSec int     `json:"prediction_sec" validate:"omitempty"`
 }
 
 type RunBacktestRequest struct {
@@ -196,6 +202,11 @@ type CorrelationItem struct {
 
 type CorrelationResponse struct {
 	Data []CorrelationItem `json:"data"`
+}
+
+type CorrelationItemRaw struct {
+	AlphaName string                   `json:"alpha_name"`
+	PnLCurve  []map[string]interface{} `json:"pnl_curve"`
 }
 
 type PerformanceItem struct {

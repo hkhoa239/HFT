@@ -2,67 +2,47 @@ package handlers
 
 import (
 	"fmt"
-	"log"
 	"math"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 	"quantalpha/internal/database"
 	"quantalpha/internal/models"
+	"quantalpha/internal/services"
 )
 
 type AnalyticsHandler struct {
-	db *database.Queries
+	db       database.Querier
+	pipeline *services.FactorPipelineService
 }
 
-func NewAnalyticsHandler(db *database.Queries) *AnalyticsHandler {
-	return &AnalyticsHandler{db: db}
+func NewAnalyticsHandler(db database.Querier) *AnalyticsHandler {
+	return &AnalyticsHandler{
+		db:       db,
+		pipeline: services.NewFactorPipelineService(os.Getenv("DATA_DIR")),
+	}
 }
 
 func (h *AnalyticsHandler) GetCorrelation(c *gin.Context) {
-	// 1. Fetch latest 10 completed backtests with pnl curves
-	query := `
-		WITH LatestBacktests AS (
-			SELECT DISTINCT ON (alpha_id) 
-				alpha_id, metrics, created_at
-			FROM backtest_runs
-			WHERE status = 'completed' AND metrics->'pnl_curve' IS NOT NULL
-			ORDER BY alpha_id, created_at DESC
-			LIMIT 10
-		)
-		SELECT 
-			a.name as alpha_name,
-			lb.metrics->'pnl_curve' as pnl_curve
-		FROM LatestBacktests lb
-		JOIN alphas a ON lb.alpha_id = a.id
-		ORDER BY lb.created_at DESC
-	`
-
-	rows, err := h.db.GetDB().Query(c.Request.Context(), query)
+	rawItems, err := h.db.GetCorrelationData(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "failed to fetch correlation data"})
 		return
 	}
-	defer rows.Close()
 
 	type alphaData struct {
-		name   string
-		pnl    []float64
+		name string
+		pnl  []float64
 	}
 	var data []alphaData
 	minLength := -1
 
-	for rows.Next() {
-		var name string
-		var rawCurve []map[string]interface{}
-		if err := rows.Scan(&name, &rawCurve); err != nil {
-			continue
-		}
-
+	for _, item := range rawItems {
 		// Convert cumPnL to step returns
 		var pnl []float64
 		lastVal := 0.0
-		for i, p := range rawCurve {
+		for i, p := range item.PnLCurve {
 			curr, ok := p["cumPnL"].(float64)
 			if !ok {
 				// Try parsing from string if it was stored that way
@@ -77,7 +57,7 @@ func (h *AnalyticsHandler) GetCorrelation(c *gin.Context) {
 		}
 
 		if len(pnl) > 0 {
-			data = append(data, alphaData{name: name, pnl: pnl})
+			data = append(data, alphaData{name: item.AlphaName, pnl: pnl})
 			if minLength == -1 || len(pnl) < minLength {
 				minLength = len(pnl)
 			}
@@ -116,8 +96,6 @@ func (h *AnalyticsHandler) GetCorrelation(c *gin.Context) {
 		}
 	}
 
-	// But actually the PM Dashboard expects a matrix. 
-	// I'll return both or update CorrelationResponse to include Matrix.
 	c.JSON(http.StatusOK, models.APIResponse{Success: true, Data: map[string]interface{}{
 		"labels": labels,
 		"matrix": matrix,
@@ -137,8 +115,12 @@ func calculatePearson(x, y []float64) float64 {
 
 	valX := float64(n)*sumX2 - sumX*sumX
 	valY := float64(n)*sumY2 - sumY*sumY
-	if valX < 0 { valX = 0 }
-	if valY < 0 { valY = 0 }
+	if valX < 0 {
+		valX = 0
+	}
+	if valY < 0 {
+		valY = 0
+	}
 
 	denom := math.Sqrt(valX * valY)
 	if denom == 0 {
@@ -148,59 +130,10 @@ func calculatePearson(x, y []float64) float64 {
 }
 
 func (h *AnalyticsHandler) GetPerformance(c *gin.Context) {
-	// Query the latest successful backtest run for each alpha, joined with alpha and author info
-	query := `
-		WITH LatestBacktests AS (
-			SELECT DISTINCT ON (alpha_id) 
-				id, alpha_id, metrics, status, created_at
-			FROM backtest_runs
-			WHERE status = 'completed'
-			ORDER BY alpha_id, created_at DESC
-		)
-		SELECT 
-			lb.alpha_id,
-			a.name as alpha_name,
-			u.username as author_name,
-			lb.metrics->>'total_pnl' as total_return,
-			lb.metrics->>'sharpe_ratio' as sharpe,
-			lb.metrics->>'win_rate' as win_rate,
-			lb.metrics->>'max_drawdown' as max_drawdown,
-			lb.metrics->'pnl_curve' as pnl_curve,
-			lb.status
-		FROM LatestBacktests lb
-		JOIN alphas a ON lb.alpha_id = a.id
-		JOIN users u ON a.author_id = u.id
-		ORDER BY lb.created_at DESC
-	`
-
-	rows, err := h.db.GetDB().Query(c.Request.Context(), query)
+	items, err := h.db.GetPerformance(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "failed to aggregate performance"})
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: err.Error()})
 		return
-	}
-	defer rows.Close()
-
-	var items []models.PerformanceItem
-	for rows.Next() {
-		var item models.PerformanceItem
-		var totalReturn, sharpe, winRate, maxDrawdown *string // Use pointers for nullable/missing fields
-		
-		if err := rows.Scan(
-			&item.AlphaID, &item.AlphaName, &item.AuthorName,
-			&totalReturn, &sharpe, &winRate, &maxDrawdown,
-			&item.PnLCurve, &item.Status,
-		); err != nil {
-			log.Printf("error scanning performance row: %v", err)
-			continue
-		}
-
-		// Convert string metrics from JSONB to float64 safely
-		if totalReturn != nil { fmt.Sscanf(*totalReturn, "%f", &item.TotalReturn) }
-		if sharpe != nil { fmt.Sscanf(*sharpe, "%f", &item.Sharpe) }
-		if winRate != nil { fmt.Sscanf(*winRate, "%f", &item.WinRate) }
-		if maxDrawdown != nil { fmt.Sscanf(*maxDrawdown, "%f", &item.MaxDrawdown) }
-
-		items = append(items, item)
 	}
 
 	c.JSON(http.StatusOK, models.APIResponse{Success: true, Data: items})
@@ -216,4 +149,64 @@ func (h *AnalyticsHandler) GetAuditLogs(c *gin.Context) {
 		Data:  logs,
 		Total: total,
 	}})
+}
+
+// GetDSOverview returns real computed statistics from the database
+func (h *AnalyticsHandler) GetDSOverview(c *gin.Context) {
+	ctx := c.Request.Context()
+	factors, _ := h.db.ListFactors(ctx)
+	modelsList, _ := h.db.ListModels(ctx)
+	backtests, _ := h.db.ListBacktestRuns(ctx)
+
+	completedCount := 0
+	for _, bt := range backtests {
+		if bt.Status == "completed" {
+			completedCount++
+		}
+	}
+
+	recordCount, _ := h.pipeline.CountPublishedRows()
+	stats := map[string]interface{}{
+		"symbol":              "VN30F2112",
+		"total_factors":       len(factors),
+		"total_models":        len(modelsList),
+		"total_backtests":     len(backtests),
+		"completed_backtests": completedCount,
+		"record_count":        recordCount,
+		"tick_size":           0.1,
+		"l3_depth":            3,
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{Success: true, Data: stats})
+}
+
+// GetModelMetrics returns training metrics for all models from DB
+func (h *AnalyticsHandler) GetModelMetrics(c *gin.Context) {
+	ctx := c.Request.Context()
+	modelsList, err := h.db.ListModels(ctx)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "failed to list models"})
+		return
+	}
+
+	type modelMetric struct {
+		ID              string                 `json:"id"`
+		Name            string                 `json:"name"`
+		Version         string                 `json:"version"`
+		TrainingMetrics map[string]interface{} `json:"training_metrics"`
+		CreatedAt       interface{}            `json:"created_at"`
+	}
+
+	var results []modelMetric
+	for _, m := range modelsList {
+		results = append(results, modelMetric{
+			ID:              m.ID.String(),
+			Name:            m.Name,
+			Version:         m.Version,
+			TrainingMetrics: m.TrainingMetrics,
+			CreatedAt:       m.CreatedAt,
+		})
+	}
+
+	c.JSON(http.StatusOK, models.APIResponse{Success: true, Data: results})
 }

@@ -12,11 +12,34 @@ import (
 )
 
 type AlphaHandler struct {
-	db *database.Queries
+	db database.Querier
 }
 
-func NewAlphaHandler(db *database.Queries) *AlphaHandler {
+func NewAlphaHandler(db database.Querier) *AlphaHandler {
 	return &AlphaHandler{db: db}
+}
+
+func (h *AlphaHandler) GetAlpha(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, models.APIResponse{Success: false, Error: "invalid alpha ID"})
+		return
+	}
+	val, _ := c.Get("user_id")
+	userID, _ := val.(uuid.UUID)
+
+	alpha, err := h.db.GetAlphaByID(c.Request.Context(), id)
+	if err != nil || alpha == nil {
+		c.JSON(http.StatusNotFound, models.APIResponse{Success: false, Error: "alpha not found"})
+		return
+	}
+	// Ownership check
+	if alpha.AuthorID != userID {
+		c.JSON(http.StatusForbidden, models.APIResponse{Success: false, Error: "not authorized"})
+		return
+	}
+	c.JSON(http.StatusOK, models.APIResponse{Success: true, Data: alpha})
 }
 
 func (h *AlphaHandler) ListMyAlphas(c *gin.Context) {
@@ -82,6 +105,13 @@ func (h *AlphaHandler) CreateAlpha(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "invalid session"})
 		return
 	}
+
+	// Safety check: verify user exists in DB
+	if _, err := h.db.GetUserByID(c.Request.Context(), userID); err != nil {
+		c.JSON(http.StatusUnauthorized, models.APIResponse{Success: false, Error: "authenticated user not found in database"})
+		return
+	}
+
 	alpha, err := h.db.CreateAlpha(c.Request.Context(), userID, req.Name, req.Description, req.CodeContent)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, models.APIResponse{Success: false, Error: "failed to create alpha"})

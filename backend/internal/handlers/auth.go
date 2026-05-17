@@ -12,12 +12,12 @@ import (
 )
 
 type AuthHandler struct {
-	db         *database.Queries
+	db         database.Querier
 	jwtSec     string
 	expireHour int
 }
 
-func NewAuthHandler(db *database.Queries, jwtSec string, expireHour int) *AuthHandler {
+func NewAuthHandler(db database.Querier, jwtSec string, expireHour int) *AuthHandler {
 	return &AuthHandler{db: db, jwtSec: jwtSec, expireHour: expireHour}
 }
 

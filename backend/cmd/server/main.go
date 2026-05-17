@@ -90,6 +90,8 @@ func main() {
 			ds.DELETE("/factors/:id", factorHandler.DeleteFactor)
 			ds.POST("/models/train", modelHandler.TrainModel)
 			ds.DELETE("/models/:id", modelHandler.DeleteModel)
+			ds.GET("/analytics/ds/overview", analyticsHandler.GetDSOverview)
+			ds.GET("/analytics/ds/models", analyticsHandler.GetModelMetrics)
 		}
 
 		pm := private.Group("")
@@ -110,6 +112,7 @@ func main() {
 			admin.PATCH("/users/:id", userHandler.UpdateUser)
 			admin.DELETE("/users/:id", userHandler.DeleteUser)
 			admin.DELETE("/jobs/:job_id", adminHandler.DeleteJob)
+			admin.POST("/seed", adminHandler.SeedData)
 		}
 	}
 
@@ -138,4 +141,3 @@ func main() {
 
 	log.Println("Server exiting")
 }
-
