@@ -28,9 +28,9 @@ jobs:
         working-directory: frontend
         run: pnpm exec tsc --noEmit
 
-      - name: Frontend Lint (Prettier Check)
+      - name: Frontend Tests (with Coverage)
         working-directory: frontend
-        run: pnpm exec prettier --check "src/**/*.{ts,html,css}"
+        run: pnpm exec ng test --no-watch --no-progress --browsers=ChromeHeadless --code-coverage
 
       # 2. Backend Validation
       - name: Setup Go
@@ -48,6 +48,12 @@ jobs:
             exit 1
           fi
 
+      - name: Go Tests (with Race Detector & Coverage)
+        working-directory: backend
+        run: |
+          go test -v -race -coverprofile=coverage.txt ./internal/...
+          go tool cover -func=coverage.txt
+
       - name: Go Build
         working-directory: backend
         run: go build -o /dev/null ./cmd/server
@@ -60,10 +66,25 @@ jobs:
           cache: 'pip'
           cache-dependency-path: worker/requirements.txt
 
-      - name: Python Compile Validation
+      - name: Install Python Dependencies
         working-directory: worker
-        run: python -m py_compile main.py engine.py db.py
+        run: pip install -r requirements.txt pytest pytest-cov
+
+      - name: Python Tests (with Coverage)
+        working-directory: worker
+        run: |
+          pytest --cov=. --cov-report=term-missing
 
       # 4. Infrastructure Validation
       - name: Docker Compose Config Validation
         run: docker compose config -q
+
+      - name: Artifact Upload (Coverage)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            backend/coverage.txt
+            frontend/coverage/
+            worker/.coverage
