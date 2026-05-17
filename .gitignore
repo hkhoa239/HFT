@@ -35,4 +35,8 @@ env/
 venv/
 *.csv
 !data/market_data_sample.csv
+
+# ── Local Development / Scratch files ───────────────────────
+scratch/
+backend/coverage.txt
 
